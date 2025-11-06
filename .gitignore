@@ -1,0 +1,61 @@
+# Environment files 
+.env
+.env.local
+.env.production
+.env.*.local
+*.env
+
+# allow examples
+!.env.example
+!.env.production.example
+
+
+# .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+*.csproj.user
+
+# Notes
+notes/
+
+# Angular
+node_modules/
+dist/
+.angular/
+*.ngfactory.ts
+*.ngsummary.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.log
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+
+# Database
+*.db
+*.sqlite
+
+# Build outputs
+out/
+build/

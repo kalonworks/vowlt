@@ -1,0 +1,22 @@
+services:
+    postgres:
+      image: pgvector/pgvector:pg17
+      container_name: vowlt-postgres
+      environment:
+        POSTGRES_USER: ${POSTGRES_USER:-vowlt_user}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vowlt_dev_pass}
+        POSTGRES_DB: ${POSTGRES_DB:-vowlt}
+      ports:
+        - "${POSTGRES_PORT:-5432}:5432"
+      volumes:
+        - postgres_data:/var/lib/postgresql/data
+      healthcheck:
+        test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vowlt_user} -d ${POSTGRES_DB:-vowlt}"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+        start_period: 10s
+      restart: unless-stopped
+
+volumes:
+  postgres_data:
