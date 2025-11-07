@@ -1,24 +1,28 @@
-using Microsoft.Extensions.DependencyInjection;
+using Vowlt.Api.Extensions.Logging;
 
 var projectRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "../../../"));
 var envPath = Path.Combine(projectRoot, ".env");
 
+// Create a temporary logger for startup
+using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+var startupLogger = loggerFactory.CreateLogger("Startup");
+
 if (File.Exists(envPath))
 {
-    Console.WriteLine($"Loading .env from: {envPath}");
+    startupLogger.EnvironmentFileLoaded(envPath);
     DotNetEnv.Env.Load(envPath);
 }
 else
 {
-    Console.WriteLine($".env file not found at: {envPath}");
-    Console.WriteLine("Using environment variables from system");
+    startupLogger.EnvironmentFileNotFound(envPath);
 }
+
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddVowltDatabase(builder.Configuration);
+builder.Services.AddVowltDatabase(builder.Configuration, builder.Environment);
 builder.Services.AddVowltIdentity();
-builder.Services.AddVowltJwtAuthentication(builder.Configuration);
+builder.Services.AddVowltJwtAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddVowltRateLimiting(builder.Configuration, builder.Environment);
 builder.Services.AddVowltValidation();
 builder.Services.AddVowltCors();

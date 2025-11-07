@@ -9,6 +9,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Vowlt.Api.Data;
+using Vowlt.Api.Extensions.Logging;
 using Vowlt.Api.Features.Auth.Models;
 using Vowlt.Api.Features.Auth.Options;
 using Vowlt.Api.Features.Auth.Services;
@@ -18,8 +19,9 @@ namespace Microsoft.Extensions.DependencyInjection;
 public static class ServiceCollectionExtensions
 {
     public static IServiceCollection AddVowltDatabase(
-        this IServiceCollection services,
-        IConfiguration configuration)
+      this IServiceCollection services,
+      IConfiguration configuration,
+      IWebHostEnvironment environment)
     {
         var host = Environment.GetEnvironmentVariable("POSTGRES_HOST") ?? "localhost";
         var port = Environment.GetEnvironmentVariable("POSTGRES_PORT") ?? "5432";
@@ -29,9 +31,29 @@ public static class ServiceCollectionExtensions
         var password = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD")
             ?? throw new InvalidOperationException("POSTGRES_PASSWORD is required");
 
+        // Production validation - don't allow defaults
+        if (environment.IsProduction())
+        {
+            if (host == "localhost")
+            {
+                throw new InvalidOperationException(
+                    "POSTGRES_HOST must be explicitly set in production (currently defaulting to 'localhost'). " +
+                    "Set the POSTGRES_HOST environment variable.");
+            }
+
+            if (database == "vowlt")
+            {
+                throw new InvalidOperationException(
+                    "POSTGRES_DB should be explicitly set in production (currently using default 'vowlt'). " +
+                    "Set the POSTGRES_DB environment variable.");
+            }
+        }
+
         var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password}";
 
-        Console.WriteLine($"Connecting to: Host={host}, Database={database}, User={username}");
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var logger = loggerFactory.CreateLogger("Database");
+        logger.DatabaseConfigured(host, database, username);
 
         services.AddDbContext<VowltDbContext>(options =>
             options.UseNpgsql(connectionString, npgsqlOptions =>
@@ -47,7 +69,7 @@ public static class ServiceCollectionExtensions
         {
             options.Password.RequireDigit = true;
             options.Password.RequireLowercase = true;
-            options.Password.RequireUppercase = true;//using Microsoft.AspNetCore.RateLimiting;
+            options.Password.RequireUppercase = true;
             options.Password.RequireNonAlphanumeric = true;
             options.Password.RequiredLength = 8;
 
@@ -63,8 +85,9 @@ public static class ServiceCollectionExtensions
     }
 
     public static IServiceCollection AddVowltJwtAuthentication(
-        this IServiceCollection services,
-        IConfiguration configuration)
+      this IServiceCollection services,
+      IConfiguration configuration,
+      IWebHostEnvironment environment)  // ← Add this parameter
     {
         services.Configure<JwtOptions>(
             configuration.GetSection(JwtOptions.SectionName));
@@ -78,6 +101,43 @@ public static class ServiceCollectionExtensions
         {
             throw new InvalidOperationException("JWT Secret is required");
         }
+
+        // Production validation
+        if (environment.IsProduction())
+        {
+            if (jwtOptions.Issuer.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "JWT Issuer cannot contain 'localhost' in production. " +
+                    "Set Jwt__Issuer to your production domain (e.g., https://api.vowlt.com).");
+            }
+
+            if (jwtOptions.Audience.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "JWT Audience cannot contain 'localhost' in production. " +
+                    "Set Jwt__Audience to your production domain.");
+            }
+
+            if (jwtOptions.Secret.Contains("dev", StringComparison.OrdinalIgnoreCase) ||
+                jwtOptions.Secret.Contains("development", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "JWT Secret appears to be a development value. " +
+                    "Use a secure, production-grade secret in production.");
+            }
+
+            if (jwtOptions.Secret.Length < 32)
+            {
+                throw new InvalidOperationException(
+                    $"JWT Secret must be at least 32 characters in production (currently {jwtOptions.Secret.Length} characters).");
+            }
+        }
+
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var logger = loggerFactory.CreateLogger("Authentication");
+        logger.JwtConfigured(jwtOptions.Issuer, jwtOptions.Audience, jwtOptions.AccessTokenExpiryMinutes);
+
 
         services
             .AddAuthentication(options =>
@@ -115,18 +175,118 @@ public static class ServiceCollectionExtensions
     }
 
     public static IServiceCollection AddVowltRateLimiting(
-       this IServiceCollection services,
-       IConfiguration configuration,
-       IWebHostEnvironment environment)
+     this IServiceCollection services,
+     IConfiguration configuration,
+     IWebHostEnvironment environment)
     {
-        // Bind configuration with defaults
-        var rateLimitOptions = configuration
-            .GetSection(RateLimitOptions.SectionName)
-            .Get<RateLimitOptions>() ?? new RateLimitOptions();
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var logger = loggerFactory.CreateLogger("RateLimiting");
+
+        var configSection = configuration.GetSection(RateLimitOptions.SectionName);
+        var rateLimitOptions = new RateLimitOptions();
+
+        // Check if configuration section exists
+        if (!configSection.Exists())
+        {
+            if (environment.IsProduction())
+            {
+                throw new InvalidOperationException(
+                    $"Rate limit configuration section '{RateLimitOptions.SectionName}' is required in production. " +
+                    "Set RateLimits__Login__PermitLimit, RateLimits__Register__PermitLimit, " +
+                    "and RateLimits__Refresh__PermitLimit in environment variables.");
+            }
+
+            logger.LogWarning(
+                "Rate limit configuration section '{SectionName}' not found. Using hardcoded defaults (development only).",
+                RateLimitOptions.SectionName);
+        }
+        else
+        {
+            // Bind configuration
+            configSection.Bind(rateLimitOptions);
+
+            // Validate individual settings
+            var loginLimitConfig = configuration[$"{RateLimitOptions.SectionName}:Login:PermitLimit"];
+            var registerLimitConfig = configuration[$"{RateLimitOptions.SectionName}:Register:PermitLimit"];
+            var refreshLimitConfig = configuration[$"{RateLimitOptions.SectionName}:Refresh:PermitLimit"];
+
+            // In production, require all rate limit settings
+            if (environment.IsProduction())
+            {
+                var missingConfigs = new List<string>();
+
+                if (string.IsNullOrEmpty(loginLimitConfig))
+                    missingConfigs.Add("RateLimits__Login__PermitLimit");
+                if (string.IsNullOrEmpty(registerLimitConfig))
+                    missingConfigs.Add("RateLimits__Register__PermitLimit");
+                if (string.IsNullOrEmpty(refreshLimitConfig))
+                    missingConfigs.Add("RateLimits__Refresh__PermitLimit");
+
+                if (missingConfigs.Any())
+                {
+                    throw new InvalidOperationException(
+                        $"Required rate limit configuration missing in production: {string.Join(", ", missingConfigs)}. "
+    +
+                        "These environment variables must be set.");
+                }
+            }
+
+            // Log which values are loaded vs using defaults (development only)
+            if (string.IsNullOrEmpty(loginLimitConfig))
+            {
+                logger.LogWarning(
+                    "Login rate limit not configured (RateLimits__Login__PermitLimit missing). Using default: {Default}",
+                    rateLimitOptions.Login.PermitLimit);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Login rate limit loaded from configuration: {Value}/{Window}",
+                    rateLimitOptions.Login.PermitLimit,
+                    $"{rateLimitOptions.Login.WindowMinutes}min");
+            }
+
+            if (string.IsNullOrEmpty(registerLimitConfig))
+            {
+                logger.LogWarning(
+                    "Register rate limit not configured (RateLimits__Register__PermitLimit missing). Using default: { Default}",
+                    rateLimitOptions.Register.PermitLimit);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Register rate limit loaded from configuration: {Value}/{Window}",
+                    rateLimitOptions.Register.PermitLimit,
+                    $"{rateLimitOptions.Register.WindowHours}hr");
+            }
+
+            if (string.IsNullOrEmpty(refreshLimitConfig))
+            {
+                logger.LogWarning(
+                    "Refresh rate limit not configured (RateLimits__Refresh__PermitLimit missing). Using default: { Default}",
+                    rateLimitOptions.Refresh.PermitLimit);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Refresh rate limit loaded from configuration: {Value}/{Window}",
+                    rateLimitOptions.Refresh.PermitLimit,
+                    $"{rateLimitOptions.Refresh.WindowHours}hr");
+            }
+        }
+
+        // Final summary
+        logger.RateLimitsConfigured(
+            configSection.Exists() ? "configuration" : "hardcoded defaults",
+            rateLimitOptions.Login.PermitLimit,
+            $"{rateLimitOptions.Login.WindowMinutes}min",
+            rateLimitOptions.Register.PermitLimit,
+            $"{rateLimitOptions.Register.WindowHours}hr",
+            rateLimitOptions.Refresh.PermitLimit,
+            $"{rateLimitOptions.Refresh.WindowHours}hr");
 
         services.AddRateLimiter(options =>
         {
-            // Login: IP-based, prevent brute force
             options.AddPolicy("login", context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -137,7 +297,6 @@ public static class ServiceCollectionExtensions
                         QueueLimit = environment.IsProduction() ? 0 : 2
                     }));
 
-            // Register: IP-based, prevent spam
             options.AddPolicy("register", context =>
                 RateLimitPartition.GetFixedWindowLimiter(
                     partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
@@ -148,7 +307,6 @@ public static class ServiceCollectionExtensions
                         QueueLimit = environment.IsProduction() ? 1 : 5
                     }));
 
-            // Refresh Token: User-based, prevent token brute force
             options.AddPolicy("refresh-token", context =>
             {
                 var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
@@ -162,7 +320,6 @@ public static class ServiceCollectionExtensions
                     });
             });
 
-            // Custom rejection response
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             options.OnRejected = async (context, token) =>
@@ -180,7 +337,6 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
-
 
 
     public static IServiceCollection AddVowltValidation(
@@ -233,20 +389,21 @@ public static class ServiceCollectionExtensions
 
             options.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
-                  {
-                      new OpenApiSecurityScheme
-                      {
-                          Reference = new OpenApiReference
-                          {
-                              Type = ReferenceType.SecurityScheme,
-                              Id = "Bearer"
-                          }
-                      },
-                      Array.Empty<string>()
-                  }
+                    {
+                        new OpenApiSecurityScheme
+                        {
+                            Reference = new OpenApiReference
+                            {
+                                Type = ReferenceType.SecurityScheme,
+                                Id = "Bearer"
+                            }
+                        },
+                        Array.Empty<string>()
+                    }
             });
         });
 
         return services;
     }
 }
+
