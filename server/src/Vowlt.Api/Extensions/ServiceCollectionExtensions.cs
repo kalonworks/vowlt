@@ -1,9 +1,10 @@
+using System.Security.Claims;
 using System.Text;
+using System.Threading.RateLimiting;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -46,7 +47,7 @@ public static class ServiceCollectionExtensions
         {
             options.Password.RequireDigit = true;
             options.Password.RequireLowercase = true;
-            options.Password.RequireUppercase = true;
+            options.Password.RequireUppercase = true;//using Microsoft.AspNetCore.RateLimiting;
             options.Password.RequireNonAlphanumeric = true;
             options.Password.RequiredLength = 8;
 
@@ -114,20 +115,73 @@ public static class ServiceCollectionExtensions
     }
 
     public static IServiceCollection AddVowltRateLimiting(
-        this IServiceCollection services)
+       this IServiceCollection services,
+       IConfiguration configuration,
+       IWebHostEnvironment environment)
     {
+        // Bind configuration with defaults
+        var rateLimitOptions = configuration
+            .GetSection(RateLimitOptions.SectionName)
+            .Get<RateLimitOptions>() ?? new RateLimitOptions();
+
         services.AddRateLimiter(options =>
         {
-            options.AddFixedWindowLimiter("refresh", opt =>
+            // Login: IP-based, prevent brute force
+            options.AddPolicy("login", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.Login.PermitLimit,
+                        Window = TimeSpan.FromMinutes(rateLimitOptions.Login.WindowMinutes),
+                        QueueLimit = environment.IsProduction() ? 0 : 2
+                    }));
+
+            // Register: IP-based, prevent spam
+            options.AddPolicy("register", context =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.Register.PermitLimit,
+                        Window = TimeSpan.FromHours(rateLimitOptions.Register.WindowHours),
+                        QueueLimit = environment.IsProduction() ? 1 : 5
+                    }));
+
+            // Refresh Token: User-based, prevent token brute force
+            options.AddPolicy("refresh-token", context =>
             {
-                opt.PermitLimit = 10;
-                opt.Window = TimeSpan.FromMinutes(1);
-                opt.QueueLimit = 0;
+                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: userId,
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.Refresh.PermitLimit,
+                        Window = TimeSpan.FromHours(rateLimitOptions.Refresh.WindowHours),
+                        QueueLimit = environment.IsProduction() ? 5 : 10
+                    });
             });
+
+            // Custom rejection response
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            options.OnRejected = async (context, token) =>
+            {
+                context.HttpContext.Response.Headers["Retry-After"] = "60";
+
+                await context.HttpContext.Response.WriteAsJsonAsync(new
+                {
+                    error = "Rate limit exceeded",
+                    message = "Too many requests. Please try again later.",
+                    retryAfter = 60
+                }, token);
+            };
         });
 
         return services;
     }
+
+
 
     public static IServiceCollection AddVowltValidation(
         this IServiceCollection services)

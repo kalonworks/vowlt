@@ -19,7 +19,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddVowltDatabase(builder.Configuration);
 builder.Services.AddVowltIdentity();
 builder.Services.AddVowltJwtAuthentication(builder.Configuration);
-builder.Services.AddVowltRateLimiting();
+builder.Services.AddVowltRateLimiting(builder.Configuration, builder.Environment);
 builder.Services.AddVowltValidation();
 builder.Services.AddVowltCors();
 builder.Services.AddVowltSwagger();
