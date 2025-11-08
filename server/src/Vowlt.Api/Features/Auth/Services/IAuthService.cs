@@ -5,8 +5,23 @@ namespace Vowlt.Api.Features.Auth.Services;
 
 public interface IAuthService
 {
-    Task<Result<AuthResponse>> RegisterAsync(RegisterRequest request, string? ipAddress = null);
-    Task<Result<AuthResponse>> LoginAsync(LoginRequest request, string? ipAddress = null);
-    Task<Result<AuthResponse>> RefreshTokenAsync(string refreshToken, string? ipAddress = null);
-    Task<Result<bool>> RevokeAllUserTokensAsync(Guid userId, string? ipAddress = null);
+    Task<Result<AuthResponse>> RegisterAsync(
+        RegisterRequest request,
+        string? ipAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<AuthResponse>> LoginAsync(
+        LoginRequest request,
+        string? ipAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<AuthResponse>> RefreshTokenAsync(
+        string refreshToken,
+        string? ipAddress,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<bool>> RevokeAllUserTokensAsync(
+        Guid userId,
+        string? ipAddress,
+        CancellationToken cancellationToken = default);
 }

@@ -7,6 +7,7 @@ public class RateLimitOptions
     public LoginLimitOptions Login { get; set; } = new();
     public RegisterLimitOptions Register { get; set; } = new();
     public RefreshLimitOptions Refresh { get; set; } = new();
+    public ExpensiveOperationLimitOptions ExpensiveOperation { get; set; } = new();
 }
 
 public class LoginLimitOptions
@@ -26,3 +27,10 @@ public class RefreshLimitOptions
     public int PermitLimit { get; set; } = 30;
     public int WindowHours { get; set; } = 1;
 }
+
+public class ExpensiveOperationLimitOptions
+{
+    public int PermitLimit { get; set; } = 10;
+    public int WindowMinutes { get; set; } = 1;
+}
+

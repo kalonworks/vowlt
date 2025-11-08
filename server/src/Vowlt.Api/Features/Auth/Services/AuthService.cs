@@ -12,11 +12,13 @@ public class AuthService(
     VowltDbContext context,
     IJwtTokenGenerator jwtTokenGenerator,
     RefreshTokenService refreshTokenService,
-    TimeProvider timeProvider) : IAuthService
+    TimeProvider timeProvider,
+    ILogger<AuthService> logger) : IAuthService
 {
     public async Task<Result<AuthResponse>> RegisterAsync(
         RegisterRequest request,
-        string? ipAddress = null)
+        string? ipAddress,
+        CancellationToken cancellationToken = default)
     {
         var existingUser = await userManager.FindByEmailAsync(request.Email);
         if (existingUser != null)
@@ -39,36 +41,48 @@ public class AuthService(
             return Result<AuthResponse>.Failure($"Registration failed: {errors}");
         }
 
-        return await GenerateAuthResponseAsync(user, ipAddress);
+        return await GenerateAuthResponseAsync(user, ipAddress, cancellationToken);
     }
 
     public async Task<Result<AuthResponse>> LoginAsync(
         LoginRequest request,
-        string? ipAddress = null)
+        string? ipAddress,
+        CancellationToken cancellationToken = default)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user == null)
         {
+            logger.LogWarning(
+                "Failed login attempt for email {Email} from IP {IpAddress} - user not found",
+                request.Email, ipAddress);
             return Result<AuthResponse>.Failure("Invalid credentials");
         }
 
         var isPasswordValid = await userManager.CheckPasswordAsync(user, request.Password);
         if (!isPasswordValid)
         {
+            logger.LogWarning(
+                "Failed login attempt for user {UserId} ({Email}) from IP {IpAddress} - invalid password",
+                user.Id, request.Email, ipAddress);
             return Result<AuthResponse>.Failure("Invalid credentials");
         }
 
         user.LastLoginAt = timeProvider.GetUtcNow().UtcDateTime;
         await userManager.UpdateAsync(user);
 
-        return await GenerateAuthResponseAsync(user, ipAddress);
+        logger.LogInformation(
+            "Successful login for user {UserId} ({Email}) from IP {IpAddress}",
+            user.Id, request.Email, ipAddress);
+
+        return await GenerateAuthResponseAsync(user, ipAddress, cancellationToken);
     }
 
     public async Task<Result<AuthResponse>> RefreshTokenAsync(
         string refreshToken,
-        string? ipAddress = null)
+        string? ipAddress,
+        CancellationToken cancellationToken = default)
     {
-        var token = await refreshTokenService.ValidateRefreshTokenAsync(refreshToken);
+        var token = await refreshTokenService.ValidateRefreshTokenAsync(refreshToken, cancellationToken);
         if (token == null)
         {
             return Result<AuthResponse>.Failure("Invalid or expired refresh token");
@@ -80,23 +94,16 @@ public class AuthService(
             return Result<AuthResponse>.Failure("User not found");
         }
 
-
         if (user.LockoutEnd != null && user.LockoutEnd > DateTimeOffset.UtcNow)
         {
-            await refreshTokenService.RevokeTokenAsync(refreshToken, ipAddress);
+            await refreshTokenService.RevokeTokenAsync(refreshToken, ipAddress, cancellationToken);
             return Result<AuthResponse>.Failure("Account is locked");
         }
 
-        // Optional: Check if email is confirmed (I will add email verification later)
-        // if (!user.EmailConfirmed)
-        // {
-        //     return Result<AuthResponse>.Failure("Email not confirmed");
-        // }
-
-
         var newRefreshToken = await refreshTokenService.RotateRefreshTokenAsync(
             token,
-            ipAddress);
+            ipAddress,
+            cancellationToken);
 
         var accessToken = jwtTokenGenerator.GenerateAccessToken(user.Id, user.Email!);
 
@@ -119,12 +126,13 @@ public class AuthService(
     }
 
     public async Task<Result<bool>> RevokeAllUserTokensAsync(
-      Guid userId,
-      string? ipAddress = null)
+        Guid userId,
+        string? ipAddress,
+        CancellationToken cancellationToken = default)
     {
         var activeTokens = await context.RefreshTokens
             .Where(rt => rt.UserId == userId && rt.RevokedAt == null)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         if (!activeTokens.Any())
         {
@@ -139,21 +147,21 @@ public class AuthService(
             token.RevokedByIp = ipAddress;
         }
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(cancellationToken);
 
         return Result<bool>.Success(true);
     }
 
-
-
     private async Task<Result<AuthResponse>> GenerateAuthResponseAsync(
         ApplicationUser user,
-        string? ipAddress = null)
+        string? ipAddress,
+        CancellationToken cancellationToken = default)
     {
         var accessToken = jwtTokenGenerator.GenerateAccessToken(user.Id, user.Email!);
         var refreshToken = await refreshTokenService.GenerateRefreshTokenAsync(
             user.Id,
-            ipAddress);
+            ipAddress,
+            cancellationToken);
 
         var response = new AuthResponse
         {

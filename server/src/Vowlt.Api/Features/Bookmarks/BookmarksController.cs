@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Vowlt.Api.Features.Bookmarks.DTOs;
 using Vowlt.Api.Features.Bookmarks.Services;
 using Vowlt.Api.Shared.Models;
@@ -13,7 +14,10 @@ namespace Vowlt.Api.Features.Bookmarks;
 public class BookmarksController(IBookmarkService bookmarkService) : ControllerBase
 {
     [HttpPost]
+    [EnableRateLimiting("expensive-operation")]
     [ProducesResponseType(typeof(BookmarkDto), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<BookmarkDto>> CreateBookmark(

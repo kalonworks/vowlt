@@ -25,7 +25,7 @@ builder.Services.AddVowltIdentity();
 builder.Services.AddVowltJwtAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddVowltRateLimiting(builder.Configuration, builder.Environment);
 builder.Services.AddVowltValidation();
-builder.Services.AddVowltCors();
+builder.Services.AddVowltCors(builder.Environment);
 builder.Services.AddVowltSwagger();
 builder.Services.AddVowltEmbedding(builder.Configuration, builder.Environment);
 builder.Services.AddVowltBookmarks();

@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Vowlt.Api.Features.Search.DTOs;
 using Vowlt.Api.Features.Search.Services;
 
@@ -12,7 +13,10 @@ namespace Vowlt.Api.Features.Search;
 public class SearchController(ISearchService searchService) : ControllerBase
 {
     [HttpPost]
+    [EnableRateLimiting("expensive-operation")]
     [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<SearchResponse>> Search(

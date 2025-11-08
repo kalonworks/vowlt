@@ -211,6 +211,7 @@ public static class ServiceCollectionExtensions
             configSection.Bind(rateLimitOptions);
 
             // Validate individual settings
+            var expensiveLimitConfig = configuration[$"{RateLimitOptions.SectionName}:ExpensiveOperation:PermitLimit"];
             var loginLimitConfig = configuration[$"{RateLimitOptions.SectionName}:Login:PermitLimit"];
             var registerLimitConfig = configuration[$"{RateLimitOptions.SectionName}:Register:PermitLimit"];
             var refreshLimitConfig = configuration[$"{RateLimitOptions.SectionName}:Refresh:PermitLimit"];
@@ -226,6 +227,9 @@ public static class ServiceCollectionExtensions
                     missingConfigs.Add("RateLimits__Register__PermitLimit");
                 if (string.IsNullOrEmpty(refreshLimitConfig))
                     missingConfigs.Add("RateLimits__Refresh__PermitLimit");
+                if (string.IsNullOrEmpty(expensiveLimitConfig))
+                    missingConfigs.Add("RateLimits__ExpensiveOperation__PermitLimit");
+
 
                 if (missingConfigs.Any())
                 {
@@ -237,6 +241,20 @@ public static class ServiceCollectionExtensions
             }
 
             // Log which values are loaded vs using defaults (development only)
+            if (string.IsNullOrEmpty(expensiveLimitConfig))
+            {
+                logger.LogWarning(
+                    "Expensive operation rate limit not configured (RateLimits__ExpensiveOperation__PermitLimit missing). Using default: {Default}",
+                    rateLimitOptions.ExpensiveOperation.PermitLimit);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Expensive operation rate limit loaded from configuration: {Value}/{Window}",
+                    rateLimitOptions.ExpensiveOperation.PermitLimit,
+                    $"{rateLimitOptions.ExpensiveOperation.WindowMinutes}min");
+            }
+
             if (string.IsNullOrEmpty(loginLimitConfig))
             {
                 logger.LogWarning(
@@ -281,14 +299,18 @@ public static class ServiceCollectionExtensions
         }
 
         // Final summary
-        logger.RateLimitsConfigured(
-            configSection.Exists() ? "configuration" : "hardcoded defaults",
-            rateLimitOptions.Login.PermitLimit,
-            $"{rateLimitOptions.Login.WindowMinutes}min",
-            rateLimitOptions.Register.PermitLimit,
-            $"{rateLimitOptions.Register.WindowHours}hr",
-            rateLimitOptions.Refresh.PermitLimit,
-            $"{rateLimitOptions.Refresh.WindowHours}hr");
+        logger.LogInformation(
+              "Rate limits configured from {Source}: Login={LoginLimit}/{LoginWindow}, Register={RegisterLimit}/{RegisterWindow}, Refresh={RefreshLimit}/{RefreshWindow}, ExpensiveOps={ExpensiveLimit}/{ExpensiveWindow}",
+              configSection.Exists() ? "configuration" : "hardcoded defaults",
+              rateLimitOptions.Login.PermitLimit,
+              $"{rateLimitOptions.Login.WindowMinutes}min",
+              rateLimitOptions.Register.PermitLimit,
+              $"{rateLimitOptions.Register.WindowHours}hr",
+              rateLimitOptions.Refresh.PermitLimit,
+              $"{rateLimitOptions.Refresh.WindowHours}hr",
+              rateLimitOptions.ExpensiveOperation.PermitLimit,
+              $"{rateLimitOptions.ExpensiveOperation.WindowMinutes}min");
+
 
         services.AddRateLimiter(options =>
         {
@@ -325,6 +347,19 @@ public static class ServiceCollectionExtensions
                     });
             });
 
+            options.AddPolicy("expensive-operation", context =>
+            {
+                var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "anonymous";
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: userId,
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = rateLimitOptions.ExpensiveOperation.PermitLimit,
+                        Window = TimeSpan.FromMinutes(rateLimitOptions.ExpensiveOperation.WindowMinutes),
+                        QueueLimit = 0
+                    });
+            });
+
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             options.OnRejected = async (context, token) =>
@@ -354,20 +389,52 @@ public static class ServiceCollectionExtensions
     }
 
     public static IServiceCollection AddVowltCors(
-        this IServiceCollection services)
+         this IServiceCollection services,
+         IWebHostEnvironment environment)
     {
         services.AddCors(options =>
         {
-            options.AddPolicy("AllowAll", policy =>
+            if (environment.IsDevelopment())
             {
-                policy.AllowAnyOrigin()
-                    .AllowAnyMethod()
-                    .AllowAnyHeader();
-            });
+                // Development: Allow all origins for easy testing
+                options.AddPolicy("AllowAll", policy =>
+                {
+                    policy.AllowAnyOrigin()
+                        .AllowAnyMethod()
+                        .AllowAnyHeader();
+                });
+            }
+            else
+            {
+                // Production: Restrict to configured origins
+                var allowedOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
+                    ?? throw new InvalidOperationException(
+                        "CORS_ALLOWED_ORIGINS environment variable is required in production. " +
+                        "Set comma-separated list of allowed origins (e.g., 'https://app.vowlt.com,https://www.vowlt.com')");
+
+
+                var origins = allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+                options.AddPolicy("AllowAll", policy =>
+                {
+                    policy.WithOrigins(origins)
+                        .AllowAnyMethod()
+                        .AllowAnyHeader()
+                        .AllowCredentials(); // Required for cookies/auth headers
+                });
+
+                using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+                var logger = loggerFactory.CreateLogger("CORS");
+                logger.LogInformation(
+                    "CORS configured for production with {Count} allowed origins: {Origins}",
+                    origins.Length,
+                    string.Join(", ", origins));
+            }
         });
 
         return services;
     }
+
 
     public static IServiceCollection AddVowltSwagger(
         this IServiceCollection services)

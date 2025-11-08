@@ -7,7 +7,6 @@ public record Result<T>
     public string? Error { get; init; }
     public List<string> Errors { get; init; } = [];
 
-    // Factory methods for creating results
     public static Result<T> Success(T value) => new()
     {
         IsSuccess = true,
@@ -24,10 +23,11 @@ public record Result<T>
     public static Result<T> Failure(List<string> errors) => new()
     {
         IsSuccess = false,
-        Error = errors.FirstOrDefault(),
-        Errors = errors
+        Error = errors.FirstOrDefault() ?? "An unknown error occurred",
+        Errors = errors.Count > 0 ? errors : ["An unknown error occurred"]
     };
 }
+
 public record Result
 {
     public bool IsSuccess { get; init; }
@@ -46,8 +46,9 @@ public record Result
     public static Result Failure(List<string> errors) => new()
     {
         IsSuccess = false,
-        Error = errors.FirstOrDefault(),
-        Errors = errors
+        Error = errors.FirstOrDefault() ?? "An unknown error occurred",
+        Errors = errors.Count > 0 ? errors : ["An unknown error occurred"]
     };
 }
+
 

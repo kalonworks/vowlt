@@ -1,119 +1,108 @@
-using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Vowlt.Api.Data;
 using Vowlt.Api.Features.Auth.Models;
-using Vowlt.Api.Features.Auth.Options;
 
 namespace Vowlt.Api.Features.Auth.Services;
 
 public class RefreshTokenService(
     VowltDbContext context,
-    IOptions<JwtOptions> jwtOptions,
     TimeProvider timeProvider)
 {
-    private readonly JwtOptions _jwtOptions = jwtOptions.Value;
-
     public async Task<RefreshToken> GenerateRefreshTokenAsync(
         Guid userId,
-        string? ipAddress = null)
+        string? ipAddress = null,
+        CancellationToken cancellationToken = default)
     {
-        var token = new RefreshToken
+        var refreshToken = new RefreshToken
         {
-            Token = GenerateSecureToken(),
+            Id = Guid.NewGuid(),
             UserId = userId,
-            ExpiresAt = timeProvider.GetUtcNow()
-                .AddDays(_jwtOptions.RefreshTokenExpiryDays)
-                .UtcDateTime,
+            Token = GenerateSecureToken(),
+            ExpiresAt = timeProvider.GetUtcNow().AddDays(7).UtcDateTime,
             CreatedAt = timeProvider.GetUtcNow().UtcDateTime,
             CreatedByIp = ipAddress
         };
 
-        context.RefreshTokens.Add(token);
-        await context.SaveChangesAsync();
+        context.RefreshTokens.Add(refreshToken);
+        await context.SaveChangesAsync(cancellationToken);
 
-        return token;
+        return refreshToken;
     }
 
-    public async Task<RefreshToken?> ValidateRefreshTokenAsync(string token)
+    public async Task<RefreshToken?> ValidateRefreshTokenAsync(
+        string token,
+        CancellationToken cancellationToken = default)
     {
         var refreshToken = await context.RefreshTokens
-            .Include(rt => rt.User)
-            .FirstOrDefaultAsync(rt => rt.Token == token);
+            .FirstOrDefaultAsync(rt => rt.Token == token, cancellationToken);
 
         if (refreshToken == null)
             return null;
 
-        // If token was already used (revoked), it might be a security breach!
-        if (refreshToken.IsRevoked)
-        {
-            // Revoke all tokens for this user 
-            var allUserTokens = await context.RefreshTokens
-                .Where(rt => rt.UserId == refreshToken.UserId && !rt.IsRevoked)
-                .ToListAsync();
-
-            foreach (var userToken in allUserTokens)
-            {
-                userToken.RevokedAt = DateTime.UtcNow;
-                userToken.RevokedByIp = "Auto-revoked: Token reuse detected";
-            }
-
-            await context.SaveChangesAsync();
+        if (refreshToken.RevokedAt != null)
             return null;
-        }
 
-        if (!refreshToken.IsActive)
+        if (refreshToken.ExpiresAt < timeProvider.GetUtcNow().UtcDateTime)
             return null;
 
         return refreshToken;
     }
 
-
     public async Task<RefreshToken> RotateRefreshTokenAsync(
         RefreshToken oldToken,
-        string? ipAddress = null)
+        string? ipAddress = null,
+        CancellationToken cancellationToken = default)
     {
-        var newToken = await GenerateRefreshTokenAsync(oldToken.UserId, ipAddress);
-
         oldToken.RevokedAt = timeProvider.GetUtcNow().UtcDateTime;
         oldToken.RevokedByIp = ipAddress;
+
+        var newToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = oldToken.UserId,
+            Token = GenerateSecureToken(),
+            ExpiresAt = timeProvider.GetUtcNow().AddDays(7).UtcDateTime,
+            CreatedAt = timeProvider.GetUtcNow().UtcDateTime,
+            CreatedByIp = ipAddress,
+            ReplacedByToken = null
+        };
+
         oldToken.ReplacedByToken = newToken.Token;
 
-        await context.SaveChangesAsync();
+        context.RefreshTokens.Add(newToken);
+        await context.SaveChangesAsync(cancellationToken);
 
         return newToken;
     }
 
-    public async Task RevokeTokenAsync(string token, string? ipAddress = null)
+    public async Task RevokeTokenAsync(
+        string token,
+        string? ipAddress = null,
+        CancellationToken cancellationToken = default)
     {
-        var refreshToken = await context.RefreshTokens
-            .FirstOrDefaultAsync(rt => rt.Token == token);
+        var userToken = await context.RefreshTokens
+            .FirstOrDefaultAsync(rt => rt.Token == token, cancellationToken);
 
-        if (refreshToken == null || !refreshToken.IsActive)
-            return;
+        if (userToken == null) return;
 
-        refreshToken.RevokedAt = timeProvider.GetUtcNow().UtcDateTime;
-        refreshToken.RevokedByIp = ipAddress;
+        userToken.RevokedAt = timeProvider.GetUtcNow().UtcDateTime;
+        userToken.RevokedByIp = ipAddress;
 
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task RemoveExpiredTokensAsync()
+    public async Task RemoveExpiredTokensAsync(CancellationToken cancellationToken = default)
     {
-        var now = timeProvider.GetUtcNow().UtcDateTime;
         var expiredTokens = await context.RefreshTokens
-            .Where(rt => rt.ExpiresAt < now)
-            .ToListAsync();
+            .Where(rt => rt.ExpiresAt < timeProvider.GetUtcNow().UtcDateTime)
+            .ToListAsync(cancellationToken);
 
         context.RefreshTokens.RemoveRange(expiredTokens);
-        await context.SaveChangesAsync();
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     private static string GenerateSecureToken()
     {
-        var randomBytes = new byte[64];
-        using var rng = RandomNumberGenerator.Create();
-        rng.GetBytes(randomBytes);
-        return Convert.ToBase64String(randomBytes);
+        return Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(64));
     }
 }
