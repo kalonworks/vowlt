@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Vowlt.Api.Features.Auth.DTOs;
 using Vowlt.Api.Features.Auth.Services;
+using Vowlt.Api.Shared.Models;
 
 namespace Vowlt.Api.Features.Auth;
 
@@ -22,7 +23,7 @@ public class AuthController(IAuthService authService) : ControllerBase
 
         if (!result.IsSuccess)
         {
-            return BadRequest(new { error = result.Error });
+            return BadRequest(ErrorResponse.FromResult(result));
         }
 
         return result.Value!;
@@ -39,7 +40,7 @@ public class AuthController(IAuthService authService) : ControllerBase
 
         if (!result.IsSuccess)
         {
-            return Unauthorized(new { error = result.Error });
+            return Unauthorized(ErrorResponse.FromResult(result));
         }
 
         return result.Value!;
@@ -56,7 +57,7 @@ public class AuthController(IAuthService authService) : ControllerBase
 
         if (!result.IsSuccess)
         {
-            return Unauthorized(new { error = result.Error });
+            return Unauthorized(ErrorResponse.FromResult(result));
         }
 
         return result.Value!;

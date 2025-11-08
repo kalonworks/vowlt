@@ -73,7 +73,7 @@ public class SearchService(
                 {
                     Bookmark = b,
                     Distance = b.Embedding!.CosineDistance(queryEmbedding),
-                    Score = 1 - (b.Embedding!.CosineDistance(queryEmbedding) / SearchConstants.CosineDistanceNormalizationFactor)
+                    Score = CalculateSimilarityScore(b.Embedding!.CosineDistance(queryEmbedding))
                 })
                 .Where(x => x.Score >= request.MinimumScore)
                 .OrderByDescending(x => x.Score)
@@ -159,7 +159,7 @@ public class SearchService(
             {
                 Bookmark = b,
                 Distance = b.Embedding!.CosineDistance(sourceBookmark.Embedding),
-                Score = 1 - (b.Embedding!.CosineDistance(sourceBookmark.Embedding) / SearchConstants.CosineDistanceNormalizationFactor)
+                Score = CalculateSimilarityScore(b.Embedding!.CosineDistance(sourceBookmark.Embedding))
             })
             .OrderByDescending(x => x.Score)
             .Take(limit)
@@ -194,4 +194,9 @@ public class SearchService(
 
         return Result<SearchResponse>.Success(response);
     }
+    private static double CalculateSimilarityScore(double cosineDistance)
+    {
+        return 1 - (cosineDistance / SearchConstants.CosineDistanceNormalizationFactor);
+    }
+
 }

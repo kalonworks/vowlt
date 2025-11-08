@@ -13,6 +13,7 @@ public class BookmarkService(
     VowltDbContext context,
     IEmbeddingService embeddingService,
     IOptions<EmbeddingOptions> embeddingOptions,
+    TimeProvider timeProvider,
     ILogger<BookmarkService> logger) : IBookmarkService
 {
     private readonly EmbeddingOptions _embeddingOptions = embeddingOptions.Value;
@@ -40,13 +41,14 @@ public class BookmarkService(
             userId,
             request.Url,
             request.Title,
+            timeProvider.GetUtcNow().UtcDateTime,
             request.Description,
             request.Notes);
 
         // 3. Set optional full text if provided
         if (!string.IsNullOrWhiteSpace(request.FullText))
         {
-            bookmark.SetFullText(request.FullText);
+            bookmark.SetFullText(request.FullText, timeProvider.GetUtcNow().UtcDateTime);
         }
 
         // 4. Generate embedding (CRITICAL: This is synchronous - fails if embedding service is down)
@@ -85,7 +87,7 @@ public class BookmarkService(
         return Result<BookmarkDto>.Success(MapToDto(bookmark));
     }
 
-    public async Task<Result<BookmarkDto?>> GetBookmarkByIdAsync(
+    public async Task<Result<BookmarkDto>> GetBookmarkByIdAsync(
         Guid userId,
         Guid bookmarkId,
         CancellationToken cancellationToken = default)
@@ -101,10 +103,10 @@ public class BookmarkService(
             logger.LogWarning(
                 "Bookmark {BookmarkId} not found for user {UserId}",
                 bookmarkId, userId);
-            return Result<BookmarkDto?>.Success(null);
+            return Result<BookmarkDto>.Failure("Bookmark not found");
         }
 
-        return Result<BookmarkDto?>.Success(MapToDto(bookmark));
+        return Result<BookmarkDto>.Success(MapToDto(bookmark));
     }
 
     public async Task<Result<PagedResult<BookmarkDto>>> GetUserBookmarksAsync(
@@ -161,7 +163,7 @@ public class BookmarkService(
         return Result<PagedResult<BookmarkDto>>.Success(pagedResult);
     }
 
-    public async Task<Result<BookmarkDto?>> GetBookmarkByUrlAsync(
+    public async Task<Result<BookmarkDto>> GetBookmarkByUrlAsync(
         Guid userId,
         string url,
         CancellationToken cancellationToken = default)
@@ -172,8 +174,13 @@ public class BookmarkService(
                 b => b.UserId == userId && b.Url == url,
                 cancellationToken);
 
-        return Result<BookmarkDto?>.Success(
-            bookmark != null ? MapToDto(bookmark) : null);
+        if (bookmark == null)
+        {
+            return Result<BookmarkDto>.Failure("Bookmark not found");
+        }
+
+        return Result<BookmarkDto>.Success(MapToDto(bookmark));
+
     }
 
     public async Task<Result<BookmarkDto>> UpdateBookmarkAsync(
@@ -198,6 +205,7 @@ public class BookmarkService(
 
         // Update content using entity's Update method
         bookmark.Update(
+            timeProvider.GetUtcNow().UtcDateTime,
             request.Title,
             request.Description,
             request.Notes);
@@ -205,7 +213,7 @@ public class BookmarkService(
         // Update full text if provided
         if (!string.IsNullOrWhiteSpace(request.FullText))
         {
-            bookmark.SetFullText(request.FullText);
+            bookmark.SetFullText(request.FullText, timeProvider.GetUtcNow().UtcDateTime);
         }
 
         // Regenerate embedding (content changed)
@@ -275,13 +283,9 @@ public class BookmarkService(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var bookmarks = await context.Bookmarks
+        var count = await context.Bookmarks
             .Where(b => b.UserId == userId)
-            .ToListAsync(cancellationToken);
-
-        var count = bookmarks.Count;
-        context.Bookmarks.RemoveRange(bookmarks);
-        await context.SaveChangesAsync(cancellationToken);
+            .ExecuteDeleteAsync(cancellationToken);
 
         logger.LogWarning(
             "Deleted all {Count} bookmarks for user {UserId}",
@@ -289,6 +293,7 @@ public class BookmarkService(
 
         return Result<int>.Success(count);
     }
+
 
     public async Task<Result<bool>> RegenerateEmbeddingAsync(
         Guid userId,
@@ -346,7 +351,7 @@ public class BookmarkService(
             return Result<BookmarkDto>.Failure("Bookmark not found");
         }
 
-        bookmark.SetMetadata(request.FaviconUrl, request.OgImageUrl);
+        bookmark.SetMetadata(request.FaviconUrl, request.OgImageUrl, timeProvider.GetUtcNow().UtcDateTime);
         await context.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
@@ -371,7 +376,7 @@ public class BookmarkService(
             return Result<bool>.Failure("Bookmark not found");
         }
 
-        bookmark.MarkAsAccessed();
+        bookmark.MarkAsAccessed(timeProvider.GetUtcNow().UtcDateTime);
         await context.SaveChangesAsync(cancellationToken);
 
         return Result<bool>.Success(true);

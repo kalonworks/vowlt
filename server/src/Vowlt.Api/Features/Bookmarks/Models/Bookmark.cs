@@ -40,6 +40,7 @@ public class Bookmark
         Guid userId,
         string url,
         string title,
+        DateTime now,
         string? description = null,
         string? notes = null)
     {
@@ -74,13 +75,14 @@ public class Bookmark
             Description = description?.Trim(),
             Notes = notes?.Trim(),
             Domain = domain,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
+            CreatedAt = now,
+            UpdatedAt = now
         };
     }
 
     // Update bookmark content
     public void Update(
+        DateTime now,
         string? title = null,
         string? description = null,
         string? notes = null)
@@ -94,7 +96,7 @@ public class Bookmark
         if (notes is not null)
             Notes = notes.Trim();
 
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = now;
     }
 
     // Set embedding from service
@@ -111,24 +113,24 @@ public class Bookmark
     }
 
     // Set full text content (for hybrid search later)
-    public void SetFullText(string fullText)
+    public void SetFullText(string fullText, DateTime now)
     {
         FullText = fullText;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = now;
     }
 
     // Set metadata
-    public void SetMetadata(string? faviconUrl, string? ogImageUrl)
+    public void SetMetadata(string? faviconUrl, string? ogImageUrl, DateTime now)
     {
         FaviconUrl = faviconUrl;
         OgImageUrl = ogImageUrl;
-        UpdatedAt = DateTime.UtcNow;
+        UpdatedAt = now;
     }
 
     // Track access
-    public void MarkAsAccessed()
+    public void MarkAsAccessed(DateTime now)
     {
-        LastAccessedAt = DateTime.UtcNow;
+        LastAccessedAt = now;
     }
 
     // Get text for embedding (combines multiple fields)

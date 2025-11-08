@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Vowlt.Api.Features.Search.DTOs;
 using Vowlt.Api.Features.Search.Services;
 using Vowlt.Api.Shared.Controllers;
+using Vowlt.Api.Shared.Models;
 
 namespace Vowlt.Api.Features.Search;
 
@@ -28,7 +29,7 @@ public class SearchController(ISearchService searchService) : VowltControllerBas
 
         if (!result.IsSuccess)
         {
-            return BadRequest(new { error = result.Error });
+            return BadRequest(ErrorResponse.FromResult(result));
         }
 
         return result.Value!;

@@ -10,7 +10,7 @@ public interface IBookmarkService
         CreateBookmarkRequest request,
         CancellationToken cancellationToken = default);
 
-    Task<Result<BookmarkDto?>> GetBookmarkByIdAsync(
+    Task<Result<BookmarkDto>> GetBookmarkByIdAsync(
         Guid userId,
         Guid bookmarkId,
         CancellationToken cancellationToken = default);
@@ -22,7 +22,7 @@ public interface IBookmarkService
         string? searchQuery = null,
         CancellationToken cancellationToken = default);
 
-    Task<Result<BookmarkDto?>> GetBookmarkByUrlAsync(
+    Task<Result<BookmarkDto>> GetBookmarkByUrlAsync(
         Guid userId,
         string url,
         CancellationToken cancellationToken = default);

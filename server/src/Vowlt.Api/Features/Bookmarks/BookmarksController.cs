@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -29,7 +28,7 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
 
         if (!result.IsSuccess)
         {
-            return BadRequest(new { error = result.Error, errors = result.Errors });
+            return BadRequest(ErrorResponse.FromResult(result));
         }
 
         return CreatedAtAction(
@@ -49,16 +48,12 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
 
         if (!result.IsSuccess)
         {
-            return NotFound(new { error = result.Error });
+            return NotFound(ErrorResponse.FromResult(result));
         }
 
-        if (result.Value == null)
-        {
-            return NotFound(new { error = "Bookmark not found" });
-        }
-
-        return result.Value;
+        return result.Value!;
     }
+
 
     [HttpGet]
     [ProducesResponseType(typeof(PagedResult<BookmarkDto>), StatusCodes.Status200OK)]
@@ -77,7 +72,7 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
 
         if (!result.IsSuccess)
         {
-            return BadRequest(new { error = result.Error });
+            return BadRequest(ErrorResponse.FromResult(result));
         }
 
         return Ok(result.Value);
@@ -91,7 +86,7 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
     {
         if (string.IsNullOrWhiteSpace(url))
         {
-            return BadRequest(new { error = "URL is required" });
+            return BadRequest(ErrorResponse.FromMessage("URL is required"));
         }
 
         var userId = GetUserId();
@@ -99,16 +94,12 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
 
         if (!result.IsSuccess)
         {
-            return NotFound(new { error = result.Error });
+            return NotFound(ErrorResponse.FromResult(result));
         }
 
-        if (result.Value == null)
-        {
-            return NotFound(new { error = "Bookmark not found" });
-        }
-
-        return result.Value;
+        return result.Value!;
     }
+
 
     [HttpPut("{id}")]
     [ProducesResponseType(typeof(BookmarkDto), StatusCodes.Status200OK)]
@@ -125,8 +116,8 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
         if (!result.IsSuccess)
         {
             return result.Error == "Bookmark not found"
-                ? NotFound(new { error = result.Error })
-                : BadRequest(new { error = result.Error });
+                ? NotFound(ErrorResponse.FromResult(result))
+                : BadRequest(ErrorResponse.FromResult(result));
         }
 
         return result.Value!;
@@ -143,7 +134,7 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
 
         if (!result.IsSuccess)
         {
-            return NotFound(new { error = result.Error });
+            return NotFound(ErrorResponse.FromResult(result));
         }
 
         return NoContent();
@@ -159,7 +150,7 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
 
         if (!result.IsSuccess)
         {
-            return BadRequest(new { error = result.Error });
+            return BadRequest(ErrorResponse.FromResult(result));
         }
 
         return Ok(new { message = $"Deleted {result.Value} bookmarks", count = result.Value });
@@ -176,7 +167,7 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
 
         if (!result.IsSuccess)
         {
-            return NotFound(new { error = result.Error });
+            return NotFound(ErrorResponse.FromResult(result));
         }
 
         return Ok(new { message = "Bookmark marked as accessed" });
@@ -195,7 +186,7 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
 
         if (!result.IsSuccess)
         {
-            return NotFound(new { error = result.Error });
+            return NotFound(ErrorResponse.FromResult(result));
         }
 
         return result.Value!;
@@ -214,8 +205,8 @@ public class BookmarksController(IBookmarkService bookmarkService) : VowltContro
         if (!result.IsSuccess)
         {
             return result.Error == "Bookmark not found"
-                ? NotFound(new { error = result.Error })
-                : BadRequest(new { error = result.Error });
+                ? NotFound(ErrorResponse.FromResult(result))
+                : BadRequest(ErrorResponse.FromResult(result));
         }
 
         return Ok(new { message = "Embedding regenerated successfully" });
