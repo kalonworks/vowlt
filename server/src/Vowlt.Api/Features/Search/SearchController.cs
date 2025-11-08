@@ -4,13 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Vowlt.Api.Features.Search.DTOs;
 using Vowlt.Api.Features.Search.Services;
+using Vowlt.Api.Shared.Controllers;
 
 namespace Vowlt.Api.Features.Search;
 
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class SearchController(ISearchService searchService) : ControllerBase
+public class SearchController(ISearchService searchService) : VowltControllerBase
 {
     [HttpPost]
     [EnableRateLimiting("expensive-operation")]
@@ -52,11 +53,5 @@ public class SearchController(ISearchService searchService) : ControllerBase
         }
 
         return result.Value!;
-    }
-
-    private Guid GetUserId()
-    {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.Parse(userIdClaim!);
     }
 }

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 using Vowlt.Api.Features.Bookmarks.DTOs;
 using Vowlt.Api.Features.Bookmarks.Services;
+using Vowlt.Api.Shared.Controllers;
 using Vowlt.Api.Shared.Models;
 
 namespace Vowlt.Api.Features.Bookmarks;
@@ -11,7 +12,7 @@ namespace Vowlt.Api.Features.Bookmarks;
 [ApiController]
 [Route("api/[controller]")]
 [Authorize]
-public class BookmarksController(IBookmarkService bookmarkService) : ControllerBase
+public class BookmarksController(IBookmarkService bookmarkService) : VowltControllerBase
 {
     [HttpPost]
     [EnableRateLimiting("expensive-operation")]
@@ -218,12 +219,5 @@ public class BookmarksController(IBookmarkService bookmarkService) : ControllerB
         }
 
         return Ok(new { message = "Embedding regenerated successfully" });
-    }
-
-    // Helper method to extract userId from JWT claims
-    private Guid GetUserId()
-    {
-        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.Parse(userIdClaim!);
     }
 }
