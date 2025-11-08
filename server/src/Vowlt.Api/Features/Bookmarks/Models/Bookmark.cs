@@ -98,13 +98,16 @@ public class Bookmark
     }
 
     // Set embedding from service
-    public void SetEmbedding(float[] embeddingValues)
+    public void SetEmbedding(float[] embeddingValues, int expectedDimensions = 384)
     {
-        if (embeddingValues == null || embeddingValues.Length != 384)
-            throw new ArgumentException("Embedding must be 384 dimensions", nameof(embeddingValues));
+        if (embeddingValues == null || embeddingValues.Length != expectedDimensions)
+        {
+            throw new ArgumentException(
+                $"Embedding must be {expectedDimensions} dimensions but got {embeddingValues?.Length ?? 0}",
+                nameof(embeddingValues));
+        }
 
         Embedding = new Vector(embeddingValues);
-        UpdatedAt = DateTime.UtcNow;
     }
 
     // Set full text content (for hybrid search later)

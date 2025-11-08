@@ -577,13 +577,37 @@ public static class ServiceCollectionExtensions
             configSource = "configuration";
         }
 
-        // Summary log (matches rate limiting pattern)
+        if (embeddingOptions.VectorDimensions != 384)
+        {
+            var message = $"VectorDimensions must be 384 for all-MiniLM-L6-v2 model. " +
+                         $"Got {embeddingOptions.VectorDimensions}. " +
+                         "Database schema is currently vector(384). " +
+                         "Changing this requires migration and re-embedding all bookmarks.";
+
+            if (environment.IsProduction())
+            {
+                throw new InvalidOperationException(message);
+            }
+
+            logger.LogWarning(message);
+        }
+        else
+        {
+            logger.LogInformation(
+                "Vector dimensions validated: {Dimensions} (matches all-MiniLM-L6-v2 model)",
+                embeddingOptions.VectorDimensions);
+        }
+
+
+        // Summary log
         logger.LogInformation(
-            "Embedding service configured from {Source}: URL={Url}, Timeout={Timeout}s, MaxRetries={Retries}",
+            "Embedding service configured from {Source}: URL={Url}, Timeout={Timeout}s, MaxRetries={Retries}, Dimensions={Dimensions}",
             configSource,
             embeddingOptions.ServiceUrl,
             embeddingOptions.TimeoutSeconds,
-            embeddingOptions.MaxRetries);
+            embeddingOptions.MaxRetries,
+            embeddingOptions.VectorDimensions);
+
 
         // Register typed HTTP client with Polly policies
         services.AddHttpClient<IEmbeddingService, EmbeddingService>(client =>

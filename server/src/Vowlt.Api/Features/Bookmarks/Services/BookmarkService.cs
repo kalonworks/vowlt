@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Vowlt.Api.Data;
 using Vowlt.Api.Features.Bookmarks.DTOs;
 using Vowlt.Api.Features.Bookmarks.Models;
+using Vowlt.Api.Features.Embedding.Options;
 using Vowlt.Api.Features.Embedding.Services;
 using Vowlt.Api.Shared.Models;
 
@@ -10,8 +12,10 @@ namespace Vowlt.Api.Features.Bookmarks.Services;
 public class BookmarkService(
     VowltDbContext context,
     IEmbeddingService embeddingService,
+    IOptions<EmbeddingOptions> embeddingOptions,
     ILogger<BookmarkService> logger) : IBookmarkService
 {
+    private readonly EmbeddingOptions _embeddingOptions = embeddingOptions.Value;
     public async Task<Result<BookmarkDto>> CreateBookmarkAsync(
         Guid userId,
         CreateBookmarkRequest request,
@@ -57,7 +61,7 @@ public class BookmarkService(
                 textForEmbedding,
                 cancellationToken);
 
-            bookmark.SetEmbedding(embedding);
+            bookmark.SetEmbedding(embedding, _embeddingOptions.VectorDimensions);
             logger.LogInformation(
                 "Successfully generated embedding for bookmark {BookmarkId}",
                 bookmark.Id);
@@ -216,7 +220,7 @@ public class BookmarkService(
                 textForEmbedding,
                 cancellationToken);
 
-            bookmark.SetEmbedding(embedding);
+            bookmark.SetEmbedding(embedding, _embeddingOptions.VectorDimensions);
             logger.LogInformation(
                 "Successfully regenerated embedding for bookmark {BookmarkId}",
                 bookmark.Id);
@@ -308,7 +312,7 @@ public class BookmarkService(
                 textForEmbedding,
                 cancellationToken);
 
-            bookmark.SetEmbedding(embedding);
+            bookmark.SetEmbedding(embedding, _embeddingOptions.VectorDimensions);
             await context.SaveChangesAsync(cancellationToken);
 
             logger.LogInformation(

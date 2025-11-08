@@ -73,7 +73,7 @@ public class SearchService(
                 {
                     Bookmark = b,
                     Distance = b.Embedding!.CosineDistance(queryEmbedding),
-                    Score = 1 - (b.Embedding!.CosineDistance(queryEmbedding) / 2)
+                    Score = 1 - (b.Embedding!.CosineDistance(queryEmbedding) / SearchConstants.CosineDistanceNormalizationFactor)
                 })
                 .Where(x => x.Score >= request.MinimumScore)
                 .OrderByDescending(x => x.Score)
@@ -97,7 +97,7 @@ public class SearchService(
                 Description = r.Bookmark.Description,
                 Domain = r.Bookmark.Domain,
                 CreatedAt = r.Bookmark.CreatedAt,
-                SimilarityScore = Math.Round(r.Score, 4)  // Round to 4 decimal places
+                SimilarityScore = Math.Round(r.Score, SearchConstants.SimilarityScoreDecimalPlaces)
             });
 
             var response = new SearchResponse
@@ -159,7 +159,7 @@ public class SearchService(
             {
                 Bookmark = b,
                 Distance = b.Embedding!.CosineDistance(sourceBookmark.Embedding),
-                Score = 1 - (b.Embedding!.CosineDistance(sourceBookmark.Embedding) / 2)
+                Score = 1 - (b.Embedding!.CosineDistance(sourceBookmark.Embedding) / SearchConstants.CosineDistanceNormalizationFactor)
             })
             .OrderByDescending(x => x.Score)
             .Take(limit)
@@ -181,7 +181,7 @@ public class SearchService(
             Description = r.Bookmark.Description,
             Domain = r.Bookmark.Domain,
             CreatedAt = r.Bookmark.CreatedAt,
-            SimilarityScore = Math.Round(r.Score, 4)
+            SimilarityScore = Math.Round(r.Score, SearchConstants.SimilarityScoreDecimalPlaces)
         });
 
         var response = new SearchResponse

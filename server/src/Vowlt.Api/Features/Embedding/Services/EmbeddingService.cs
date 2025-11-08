@@ -50,13 +50,11 @@ public class EmbeddingService(
                 result.Model);
 
             // Validate dimensions
-            if (result.Dimensions != 384)
+            if (result.Dimensions != _options.VectorDimensions)
             {
-                logger.LogWarning(
-                    "Expected 384 dimensions but got {Dimensions}",
-                    result.Dimensions);
+                throw new InvalidOperationException(
+                $"Expected {_options.VectorDimensions} dimensions but received {result.Dimensions}");
             }
-
             return result.Embeddings;
         }
         catch (HttpRequestException ex)
