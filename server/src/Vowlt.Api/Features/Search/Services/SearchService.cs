@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Pgvector;
 using Pgvector.EntityFrameworkCore;
 using Vowlt.Api.Data;
-using Vowlt.Api.Features.Bookmarks.Services;
+using Vowlt.Api.Features.Embedding.Services;
 using Vowlt.Api.Features.Search.DTOs;
 using Vowlt.Api.Shared.Models;
 

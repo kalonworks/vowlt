@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Vowlt.Api.Data;
 using Vowlt.Api.Features.Bookmarks.DTOs;
 using Vowlt.Api.Features.Bookmarks.Models;
+using Vowlt.Api.Features.Embedding.Services;
 using Vowlt.Api.Shared.Models;
 
 namespace Vowlt.Api.Features.Bookmarks.Services;

@@ -1,4 +1,4 @@
-namespace Vowlt.Api.Features.Bookmarks.DTOs;
+namespace Vowlt.Api.Features.Embedding.DTOs;
 
 public record EmbedRequest(string[] Texts);
 

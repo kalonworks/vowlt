@@ -1,6 +1,6 @@
 using System;
 
-namespace Vowlt.Api.Features.Bookmarks.Services;
+namespace Vowlt.Api.Features.Embedding.Services;
 
 public interface IEmbeddingService
   {

@@ -15,8 +15,9 @@ using Vowlt.Api.Extensions.Logging;
 using Vowlt.Api.Features.Auth.Models;
 using Vowlt.Api.Features.Auth.Options;
 using Vowlt.Api.Features.Auth.Services;
-using Vowlt.Api.Features.Bookmarks.Options;
 using Vowlt.Api.Features.Bookmarks.Services;
+using Vowlt.Api.Features.Embedding.Options;
+using Vowlt.Api.Features.Embedding.Services;
 using Vowlt.Api.Features.Search.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;

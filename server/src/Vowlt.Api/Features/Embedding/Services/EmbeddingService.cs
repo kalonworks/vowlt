@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
-using Vowlt.Api.Features.Bookmarks.DTOs;
-using Vowlt.Api.Features.Bookmarks.Options;
+using Vowlt.Api.Features.Embedding.Options;
+using Vowlt.Api.Features.Embedding.DTOs;
 
-namespace Vowlt.Api.Features.Bookmarks.Services;
+namespace Vowlt.Api.Features.Embedding.Services;
 
 public class EmbeddingService(
     HttpClient httpClient,

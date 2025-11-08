@@ -1,4 +1,4 @@
-namespace Vowlt.Api.Features.Bookmarks.Options;
+namespace Vowlt.Api.Features.Embedding.Options;
 
 public class EmbeddingOptions
 {
