@@ -8,11 +8,16 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using Polly;
+using Polly.Extensions.Http;
 using Vowlt.Api.Data;
 using Vowlt.Api.Extensions.Logging;
 using Vowlt.Api.Features.Auth.Models;
 using Vowlt.Api.Features.Auth.Options;
 using Vowlt.Api.Features.Auth.Services;
+using Vowlt.Api.Features.Bookmarks.Options;
+using Vowlt.Api.Features.Bookmarks.Services;
+using Vowlt.Api.Features.Search.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
 
@@ -405,5 +410,200 @@ public static class ServiceCollectionExtensions
 
         return services;
     }
+
+    public static IServiceCollection AddVowltEmbedding(
+       this IServiceCollection services,
+       IConfiguration configuration,
+       IWebHostEnvironment environment)
+    {
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var logger = loggerFactory.CreateLogger("Embedding");
+
+        // Configure options
+        services.Configure<EmbeddingOptions>(
+            configuration.GetSection(EmbeddingOptions.SectionName));
+
+        var configSection = configuration.GetSection(EmbeddingOptions.SectionName);
+        var embeddingOptions = configSection.Get<EmbeddingOptions>() ?? new EmbeddingOptions();
+
+        // Check individual config values
+        var serviceUrlConfig = configuration[$"{EmbeddingOptions.SectionName}:ServiceUrl"];
+        var timeoutConfig = configuration[$"{EmbeddingOptions.SectionName}:TimeoutSeconds"];
+        var retriesConfig = configuration[$"{EmbeddingOptions.SectionName}:MaxRetries"];
+
+        // Determine source
+        string configSource;
+        if (!configSection.Exists())
+        {
+            // No configuration section at all
+            if (environment.IsProduction())
+            {
+                throw new InvalidOperationException(
+                    "Embedding service configuration is required in production. " +
+                    "Set Embedding__ServiceUrl environment variable.");
+            }
+
+            logger.LogWarning(
+                "Embedding configuration section '{SectionName}' not found. Using hardcoded defaults (development only).",
+                EmbeddingOptions.SectionName);
+
+            configSource = "hardcoded defaults";
+        }
+        else
+        {
+            // Log individual values
+            if (string.IsNullOrEmpty(serviceUrlConfig))
+            {
+                logger.LogWarning(
+                    "Embedding service URL not configured (Embedding__ServiceUrl missing). Using default: {Default}",
+                    embeddingOptions.ServiceUrl);
+            }
+            else
+            {
+                logger.LogInformation(
+                    "Embedding service URL loaded from configuration: {Url}",
+                    embeddingOptions.ServiceUrl);
+            }
+
+            if (string.IsNullOrEmpty(timeoutConfig))
+            {
+                logger.LogWarning(
+                    "Embedding timeout not configured (Embedding__TimeoutSeconds missing). Using default: {Default}s",
+                    embeddingOptions.TimeoutSeconds);
+            }
+
+            if (string.IsNullOrEmpty(retriesConfig))
+            {
+                logger.LogWarning(
+                    "Embedding max retries not configured (Embedding__MaxRetries missing). Using default: {Default}",
+                    embeddingOptions.MaxRetries);
+            }
+
+            // Production validation
+            if (environment.IsProduction())
+            {
+                var missingConfigs = new List<string>();
+
+                if (string.IsNullOrEmpty(serviceUrlConfig))
+                    missingConfigs.Add("Embedding__ServiceUrl");
+                if (string.IsNullOrEmpty(timeoutConfig))
+                    missingConfigs.Add("Embedding__TimeoutSeconds");
+                if (string.IsNullOrEmpty(retriesConfig))
+                    missingConfigs.Add("Embedding__MaxRetries");
+
+                if (missingConfigs.Any())
+                {
+                    throw new InvalidOperationException(
+                        $"Required embedding configuration missing in production: {string.Join(", ", missingConfigs)}. " +
+                        "These environment variables must be set.");
+                }
+
+                if (embeddingOptions.ServiceUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "Embedding ServiceUrl cannot contain 'localhost' in production. " +
+                        "Set Embedding__ServiceUrl to your service name (e.g., http://embedding:8000).");
+                }
+            }
+
+            configSource = "configuration";
+        }
+
+        // Summary log (matches rate limiting pattern)
+        logger.LogInformation(
+            "Embedding service configured from {Source}: URL={Url}, Timeout={Timeout}s, MaxRetries={Retries}",
+            configSource,
+            embeddingOptions.ServiceUrl,
+            embeddingOptions.TimeoutSeconds,
+            embeddingOptions.MaxRetries);
+
+        // Register typed HTTP client with Polly policies
+        services.AddHttpClient<IEmbeddingService, EmbeddingService>(client =>
+        {
+            client.BaseAddress = new Uri(embeddingOptions.ServiceUrl);
+            client.Timeout = TimeSpan.FromSeconds(embeddingOptions.TimeoutSeconds);
+        })
+        .AddPolicyHandler((serviceProvider, request) =>
+        {
+            var policyLogger = serviceProvider.GetRequiredService<ILogger<EmbeddingService>>();
+            return GetRetryPolicy(embeddingOptions, policyLogger);
+        })
+        .AddPolicyHandler((serviceProvider, request) =>
+        {
+            var policyLogger = serviceProvider.GetRequiredService<ILogger<EmbeddingService>>();
+            return GetCircuitBreakerPolicy(policyLogger);
+        });
+
+        return services;
+    }
+
+
+
+    // Retry policy: 3 attempts with exponential backoff
+    private static IAsyncPolicy<HttpResponseMessage> GetRetryPolicy(
+        EmbeddingOptions options,
+        ILogger logger)
+    {
+        return HttpPolicyExtensions
+            .HandleTransientHttpError() // 5xx and 408
+            .OrResult(msg => msg.StatusCode == System.Net.HttpStatusCode.TooManyRequests)
+            .WaitAndRetryAsync(
+                retryCount: options.MaxRetries,
+                sleepDurationProvider: retryAttempt =>
+                    TimeSpan.FromMilliseconds(options.RetryDelayMs * Math.Pow(2, retryAttempt - 1)),
+                onRetry: (outcome, timespan, retryAttempt, context) =>
+                {
+                    var statusCode = outcome.Result?.StatusCode.ToString() ?? "N/A";
+                    var error = outcome.Exception?.Message ?? statusCode;
+
+                    logger.LogWarning(
+                        "Embedding service retry {RetryAttempt}/{MaxRetries} after {Delay}ms. Reason: {Error}",
+                        retryAttempt,
+                        options.MaxRetries,
+                        timespan.TotalMilliseconds,
+                        error);
+                });
+    }
+
+    // Circuit breaker: opens after 5 consecutive failures, half-opens after 30s
+    private static IAsyncPolicy<HttpResponseMessage> GetCircuitBreakerPolicy(ILogger logger)
+    {
+        return HttpPolicyExtensions
+            .HandleTransientHttpError()
+            .CircuitBreakerAsync(
+                handledEventsAllowedBeforeBreaking: 5,
+                durationOfBreak: TimeSpan.FromSeconds(30),
+                onBreak: (outcome, duration) =>
+                {
+                    logger.LogError(
+                        "Embedding service circuit breaker OPENED for {Duration}s after 5 consecutive failures. Last error: {Error}",
+                        duration.TotalSeconds,
+                        outcome.Exception?.Message ?? outcome.Result?.StatusCode.ToString());
+                },
+                onReset: () =>
+                {
+                    logger.LogInformation(
+                        "Embedding service circuit breaker RESET. Service is healthy again.");
+                },
+                onHalfOpen: () =>
+                {
+                    logger.LogInformation(
+                        "Embedding service circuit breaker HALF-OPEN. Testing if service recovered.");
+                });
+    }
+
+    public static IServiceCollection AddVowltBookmarks(
+          this IServiceCollection services)
+    {
+        services.AddScoped<IBookmarkService, BookmarkService>();
+        return services;
+    }
+    public static IServiceCollection AddVowltSearch(
+      this IServiceCollection services)
+    {
+        services.AddScoped<ISearchService, SearchService>();
+        return services;
+    }
+
 }
 

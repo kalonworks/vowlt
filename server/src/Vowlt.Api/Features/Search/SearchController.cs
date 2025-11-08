@@ -1,0 +1,58 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Vowlt.Api.Features.Search.DTOs;
+using Vowlt.Api.Features.Search.Services;
+
+namespace Vowlt.Api.Features.Search;
+
+[ApiController]
+[Route("api/[controller]")]
+[Authorize]
+public class SearchController(ISearchService searchService) : ControllerBase
+{
+    [HttpPost]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<SearchResponse>> Search(
+        [FromBody] SearchRequest request)
+    {
+        var userId = GetUserId();
+        var result = await searchService.SearchAsync(userId, request);
+
+        if (!result.IsSuccess)
+        {
+            return BadRequest(new { error = result.Error });
+        }
+
+        return result.Value!;
+    }
+
+    [HttpGet("similar/{bookmarkId}")]
+    [ProducesResponseType(typeof(SearchResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<SearchResponse>> FindSimilar(
+        Guid bookmarkId,
+        [FromQuery] int limit = 10)
+    {
+        var userId = GetUserId();
+        var result = await searchService.FindSimilarAsync(userId, bookmarkId, limit);
+
+        if (!result.IsSuccess)
+        {
+            return result.Error == "Bookmark not found"
+                ? NotFound(new { error = result.Error })
+                : BadRequest(new { error = result.Error });
+        }
+
+        return result.Value!;
+    }
+
+    private Guid GetUserId()
+    {
+        var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.Parse(userIdClaim!);
+    }
+}

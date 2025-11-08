@@ -9,7 +9,8 @@
 !.env.example
 !.env.production.example
 
-
+# for now
+docs
 # .NET
 bin/
 obj/

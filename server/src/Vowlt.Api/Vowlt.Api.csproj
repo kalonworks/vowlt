@@ -35,9 +35,4 @@
     <PackageReference Include="WolverineFx.Postgresql" Version="5.1.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="Features/Bookmarks/" />
-    <Folder Include="Features/Search/" />
-  </ItemGroup>
-
 </Project>

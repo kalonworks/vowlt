@@ -27,6 +27,9 @@ builder.Services.AddVowltRateLimiting(builder.Configuration, builder.Environment
 builder.Services.AddVowltValidation();
 builder.Services.AddVowltCors();
 builder.Services.AddVowltSwagger();
+builder.Services.AddVowltEmbedding(builder.Configuration, builder.Environment);
+builder.Services.AddVowltBookmarks();
+builder.Services.AddVowltSearch();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
