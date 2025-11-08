@@ -11,7 +11,7 @@ public class AuthService(
     UserManager<ApplicationUser> userManager,
     VowltDbContext context,
     IJwtTokenGenerator jwtTokenGenerator,
-    RefreshTokenService refreshTokenService,
+    IRefreshTokenService refreshTokenService,
     TimeProvider timeProvider,
     ILogger<AuthService> logger) : IAuthService
 {

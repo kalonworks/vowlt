@@ -6,7 +6,7 @@ namespace Vowlt.Api.Features.Auth.Services;
 
 public class RefreshTokenService(
     VowltDbContext context,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider) : IRefreshTokenService
 {
     public async Task<RefreshToken> GenerateRefreshTokenAsync(
         Guid userId,
