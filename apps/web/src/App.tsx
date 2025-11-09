@@ -24,13 +24,8 @@ declare module "@tanstack/react-router" {
 }
 
 function InnerApp() {
-  // Use selector function instead of getter
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const user = useAuthStore((state) => state.user);
-
-  console.log("InnerApp render - isAuthenticated:", isAuthenticated);
-  console.log("InnerApp render - user:", user);
-
   return (
     <RouterProvider
       router={router}

@@ -11,15 +11,9 @@ export const useLogin = () => {
   return useMutation({
     mutationFn: authApi.login,
     onSuccess: async (data) => {
-      console.log("Login success - setting auth"); // DEBUG
       setAuth(data.user, data.accessToken, data.refreshToken);
-
-      console.log("Invalidating router"); // DEBUG
       await router.invalidate();
-
-      console.log("Navigating to /bookmarks"); // DEBUG
       await navigate({ to: "/bookmarks" });
-      console.log("Navigation complete"); // DEBUG
     },
   });
 };
