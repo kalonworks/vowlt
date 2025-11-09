@@ -14,9 +14,20 @@ export const BookmarksPage = () => {
       <nav className="border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
-            <div className="flex items-center">
+            <div className="flex items-center gap-8">
               <h1 className="text-xl font-bold">Vowlt</h1>
+
+              {/* Navigation Links */}
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" asChild className="font-medium">
+                  <a href="/bookmarks">Bookmarks</a>
+                </Button>
+                <Button variant="ghost" asChild className="font-medium">
+                  <a href="/search">Search</a>
+                </Button>
+              </div>
             </div>
+
             <div className="flex items-center gap-4">
               <span className="text-sm text-muted-foreground">
                 {user?.email}

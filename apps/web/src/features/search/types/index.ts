@@ -1,19 +1,28 @@
-import type { Bookmark } from "@/features/bookmarks/types";
-
+// Search request to backend
 export interface SearchRequest {
   query: string;
   limit?: number;
-  similarityThreshold?: number;
+  minimumScore?: number;
+  fromDate?: string;
+  toDate?: string;
+  domain?: string;
 }
 
+// Individual search result
 export interface SearchResult {
-  bookmark: Bookmark;
-  similarity: number;
-  rank: number;
+  id: string;
+  url: string;
+  title: string;
+  description?: string;
+  domain?: string;
+  createdAt: string;
+  similarityScore: number; // 0-1, rounded to 4 decimals
 }
 
+// Search response from backend
 export interface SearchResponse {
+  query: string;
   results: SearchResult[];
-  totalCount: number;
-  queryProcessingTimeMs: number;
+  totalResults: number;
+  processingTimeMs: number;
 }
