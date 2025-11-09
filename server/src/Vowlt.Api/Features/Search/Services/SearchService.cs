@@ -66,18 +66,19 @@ public class SearchService(
             }
 
             // 4. Perform vector similarity search using pgvector
-            // CosineDistance returns 0 for identical vectors, 2 for opposite
-            // We convert to similarity score: 1 - (distance / 2) = range [0, 1]
+            // Convert similarity threshold to distance threshold
+            // Similarity = 1 - (distance / 2), so distance = 2 * (1 - similarity)
+            var maxDistance = SearchConstants.CosineDistanceNormalizationFactor * (1 - request.MinimumScore);
+
             var results = await query
+                .Where(b => b.Embedding!.CosineDistance(queryEmbedding) <= maxDistance)
+                .OrderBy(b => b.Embedding!.CosineDistance(queryEmbedding))
+                .Take(request.Limit)
                 .Select(b => new
                 {
                     Bookmark = b,
-                    Distance = b.Embedding!.CosineDistance(queryEmbedding),
-                    Score = CalculateSimilarityScore(b.Embedding!.CosineDistance(queryEmbedding))
+                    Distance = b.Embedding!.CosineDistance(queryEmbedding)
                 })
-                .Where(x => x.Score >= request.MinimumScore)
-                .OrderByDescending(x => x.Score)
-                .Take(request.Limit)
                 .ToListAsync(cancellationToken);
 
             stopwatch.Stop();
@@ -88,7 +89,7 @@ public class SearchService(
                 results.Count,
                 request.Query);
 
-            // 5. Map to response DTOs
+            // 5. Map to response DTOs (calculate scores in memory)
             var searchResults = results.Select(r => new SearchResultDto
             {
                 Id = r.Bookmark.Id,
@@ -97,14 +98,16 @@ public class SearchService(
                 Description = r.Bookmark.Description,
                 Domain = r.Bookmark.Domain,
                 CreatedAt = r.Bookmark.CreatedAt,
-                SimilarityScore = Math.Round(r.Score, SearchConstants.SimilarityScoreDecimalPlaces)
-            });
+                SimilarityScore = Math.Round(
+                    CalculateSimilarityScore(r.Distance),
+                    SearchConstants.SimilarityScoreDecimalPlaces)
+            }).ToList();
 
             var response = new SearchResponse
             {
                 Query = request.Query,
                 Results = searchResults,
-                TotalResults = results.Count,
+                TotalResults = searchResults.Count,
                 ProcessingTimeMs = stopwatch.ElapsedMilliseconds
             };
 
@@ -155,14 +158,13 @@ public class SearchService(
             .Where(b => b.UserId == userId
                 && b.Id != bookmarkId  // Exclude the source bookmark
                 && b.Embedding != null)
+            .OrderBy(b => b.Embedding!.CosineDistance(sourceBookmark.Embedding))
+            .Take(limit)
             .Select(b => new
             {
                 Bookmark = b,
-                Distance = b.Embedding!.CosineDistance(sourceBookmark.Embedding),
-                Score = CalculateSimilarityScore(b.Embedding!.CosineDistance(sourceBookmark.Embedding))
+                Distance = b.Embedding!.CosineDistance(sourceBookmark.Embedding)
             })
-            .OrderByDescending(x => x.Score)
-            .Take(limit)
             .ToListAsync(cancellationToken);
 
         stopwatch.Stop();
@@ -172,7 +174,7 @@ public class SearchService(
             results.Count,
             stopwatch.ElapsedMilliseconds);
 
-        // 3. Map to response
+        // 3. Map to response (calculate scores in memory)
         var searchResults = results.Select(r => new SearchResultDto
         {
             Id = r.Bookmark.Id,
@@ -181,22 +183,24 @@ public class SearchService(
             Description = r.Bookmark.Description,
             Domain = r.Bookmark.Domain,
             CreatedAt = r.Bookmark.CreatedAt,
-            SimilarityScore = Math.Round(r.Score, SearchConstants.SimilarityScoreDecimalPlaces)
-        });
+            SimilarityScore = Math.Round(
+                CalculateSimilarityScore(r.Distance),
+                SearchConstants.SimilarityScoreDecimalPlaces)
+        }).ToList();
 
         var response = new SearchResponse
         {
             Query = $"Similar to: {sourceBookmark.Title}",
             Results = searchResults,
-            TotalResults = results.Count,
+            TotalResults = searchResults.Count,
             ProcessingTimeMs = stopwatch.ElapsedMilliseconds
         };
 
         return Result<SearchResponse>.Success(response);
     }
+
     private static double CalculateSimilarityScore(double cosineDistance)
     {
         return 1 - (cosineDistance / SearchConstants.CosineDistanceNormalizationFactor);
     }
-
 }
