@@ -8,46 +8,30 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
 
-  // Computed
-  isAuthenticated: boolean;
-
   // Actions
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
   clearAuth: () => void;
 }
 
-// persist middleware
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // Initial state
       user: null,
       accessToken: null,
       refreshToken: null,
 
-      // Computed values
-      get isAuthenticated() {
-        return !!get().accessToken && !!get().user;
-      },
-
       // Actions
       setAuth: (user, accessToken, refreshToken) => {
-        // Also store in localStorage for api-client interceptor
-        localStorage.setItem("accessToken", accessToken);
-        localStorage.setItem("refreshToken", refreshToken);
-
         set({ user, accessToken, refreshToken });
       },
 
       clearAuth: () => {
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
-
         set({ user: null, accessToken: null, refreshToken: null });
       },
     }),
     {
-      name: "auth-storage", // localStorage key
+      name: "auth-storage",
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
@@ -56,3 +40,7 @@ export const useAuthStore = create<AuthState>()(
     }
   )
 );
+
+// Helper selector to compute isAuthenticated
+export const selectIsAuthenticated = (state: AuthState) =>
+  !!state.accessToken && !!state.user;

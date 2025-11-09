@@ -1,35 +1,51 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
-import "./App.css";
+import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { routeTree } from "./routeTree.gen";
+import {
+  useAuthStore,
+  selectIsAuthenticated,
+} from "@/features/auth/store/auth-store";
 
-function App() {
-  const [count, setCount] = useState(0);
+// Create router instance with initial context
+const router = createRouter({
+  routeTree,
+  context: {
+    auth: {
+      isAuthenticated: false,
+      user: null,
+    },
+  },
+});
+
+// Register router for type-safety
+declare module "@tanstack/react-router" {
+  interface Register {
+    router: typeof router;
+  }
+}
+
+function InnerApp() {
+  // Use selector function instead of getter
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
+  const user = useAuthStore((state) => state.user);
+
+  console.log("InnerApp render - isAuthenticated:", isAuthenticated);
+  console.log("InnerApp render - user:", user);
 
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+    <RouterProvider
+      router={router}
+      context={{
+        auth: {
+          isAuthenticated,
+          user,
+        },
+      }}
+    />
   );
+}
+
+function App() {
+  return <InnerApp />;
 }
 
 export default App;

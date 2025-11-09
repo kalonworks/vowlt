@@ -9,6 +9,37 @@ export interface ApiError {
   errors?: Record<string, string[]>;
 }
 
+// Helper to get auth state from Zustand persist storage
+function getAuthFromStorage() {
+  const authStorage = localStorage.getItem("auth-storage");
+  if (!authStorage) return null;
+
+  try {
+    const { state } = JSON.parse(authStorage);
+    return {
+      accessToken: state.accessToken,
+      refreshToken: state.refreshToken,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// Helper to update tokens in Zustand persist storage
+function updateTokensInStorage(accessToken: string, refreshToken: string) {
+  const authStorage = localStorage.getItem("auth-storage");
+  if (!authStorage) return;
+
+  try {
+    const parsed = JSON.parse(authStorage);
+    parsed.state.accessToken = accessToken;
+    parsed.state.refreshToken = refreshToken;
+    localStorage.setItem("auth-storage", JSON.stringify(parsed));
+  } catch {
+    console.error("Failed to update tokens in storage");
+  }
+}
+
 // Create axios instance
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -20,9 +51,9 @@ export const apiClient = axios.create({
 // Request interceptor - inject JWT token
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = localStorage.getItem("accessToken");
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    const auth = getAuthFromStorage();
+    if (auth?.accessToken && config.headers) {
+      config.headers.Authorization = `Bearer ${auth.accessToken}`;
     }
     return config;
   },
@@ -42,11 +73,10 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refreshToken = localStorage.getItem("refreshToken");
-        if (!refreshToken) {
-          // No refresh token, clear state and redirect
-          localStorage.removeItem("accessToken");
-          localStorage.removeItem("refreshToken");
+        const auth = getAuthFromStorage();
+        if (!auth?.refreshToken) {
+          // No refresh token, clear and redirect
+          localStorage.removeItem("auth-storage");
           window.location.href = "/login";
           return Promise.reject(error);
         }
@@ -57,15 +87,14 @@ apiClient.interceptors.response.use(
           refreshToken: string;
         }>(
           `${import.meta.env.VITE_API_BASE_URL}/api/auth/refresh`,
-          { refreshToken },
+          { refreshToken: auth.refreshToken },
           {
             headers: { "Content-Type": "application/json" },
           }
         );
 
-        // Save new tokens
-        localStorage.setItem("accessToken", data.accessToken);
-        localStorage.setItem("refreshToken", data.refreshToken);
+        // Update tokens in Zustand persist storage
+        updateTokensInStorage(data.accessToken, data.refreshToken);
 
         // Retry original request with new token
         if (originalRequest.headers) {
@@ -74,8 +103,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         // Refresh failed, logout
-        localStorage.removeItem("accessToken");
-        localStorage.removeItem("refreshToken");
+        localStorage.removeItem("auth-storage");
         window.location.href = "/login";
         return Promise.reject(refreshError);
       }
