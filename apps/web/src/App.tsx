@@ -1,4 +1,5 @@
 import { RouterProvider, createRouter } from "@tanstack/react-router";
+import { Toaster } from "@/components/ui/sonner";
 import { routeTree } from "./routeTree.gen";
 import {
   useAuthStore,
@@ -27,15 +28,18 @@ function InnerApp() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const user = useAuthStore((state) => state.user);
   return (
-    <RouterProvider
-      router={router}
-      context={{
-        auth: {
-          isAuthenticated,
-          user,
-        },
-      }}
-    />
+    <>
+      <RouterProvider
+        router={router}
+        context={{
+          auth: {
+            isAuthenticated,
+            user,
+          },
+        }}
+      />
+      <Toaster />
+    </>
   );
 }
 

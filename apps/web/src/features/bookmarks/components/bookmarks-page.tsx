@@ -1,38 +1,56 @@
 import { useLogout } from "@/features/auth/hooks";
 import { useAuthStore } from "@/features/auth/store/auth-store";
+import { Button } from "@/components/ui/button";
+import { CreateBookmarkDialog } from "./create-bookmark-dialog";
+import { BookmarksList } from "./bookmarks-list";
 
 export const BookmarksPage = () => {
   const user = useAuthStore((state) => state.user);
   const logout = useLogout();
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-white shadow-sm">
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <nav className="border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
               <h1 className="text-xl font-bold">Vowlt</h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-700">{user?.email}</span>
-              <button
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground">
+                {user?.email}
+              </span>
+              <Button
                 onClick={() => logout.mutate()}
                 disabled={logout.isPending}
-                className="px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900"
+                variant="ghost"
               >
                 {logout.isPending ? "Logging out..." : "Logout"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </nav>
 
+      {/* Main Content */}
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <h2 className="text-2xl font-bold mb-4">Your Bookmarks</h2>
-          <p className="text-gray-600">
-            Bookmark management coming soon! Authentication is working. 🎉
-          </p>
+        <div className="px-4 sm:px-0">
+          {/* Page Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">
+                Your Bookmarks
+              </h2>
+              <p className="text-muted-foreground mt-1">
+                Manage your saved bookmarks
+              </p>
+            </div>
+            <CreateBookmarkDialog />
+          </div>
+
+          {/* Bookmarks List */}
+          <BookmarksList />
         </div>
       </main>
     </div>

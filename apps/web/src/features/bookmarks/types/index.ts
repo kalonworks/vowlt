@@ -1,39 +1,34 @@
+// Core bookmark type returned from API
 export interface Bookmark {
   id: string;
+  userId: string;
   url: string;
-  title: string;
+  title?: string;
   description?: string;
-  notes?: string;
-  fullText?: string;
-  faviconUrl?: string;
-  ogImageUrl?: string;
-  domain?: string;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
-  lastAccessedAt?: string;
-  hasEmbedding: boolean;
 }
 
+// Request types for API calls
 export interface CreateBookmarkRequest {
   url: string;
-  title: string;
+  title?: string;
   description?: string;
-  notes?: string;
-  fullText?: string;
+  tags?: string[];
 }
 
 export interface UpdateBookmarkRequest {
+  url?: string;
   title?: string;
   description?: string;
-  notes?: string;
+  tags?: string[];
 }
 
-export interface BookmarksResponse {
-  items: Bookmark[];
-  pageNumber: number;
-  pageSize: number;
-  totalCount: number;
-  totalPages: number;
-  hasNextPage: boolean;
-  hasPreviousPage: boolean;
+// Query parameters for fetching bookmarks
+export interface GetBookmarksParams {
+  pageNumber?: number;
+  pageSize?: number;
+  search?: string;
+  tags?: string[];
 }
