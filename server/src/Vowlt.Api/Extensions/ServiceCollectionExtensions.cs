@@ -6,6 +6,7 @@ using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using Polly;
@@ -18,6 +19,8 @@ using Vowlt.Api.Features.Auth.Services;
 using Vowlt.Api.Features.Bookmarks.Services;
 using Vowlt.Api.Features.Embedding.Options;
 using Vowlt.Api.Features.Embedding.Services;
+using Vowlt.Api.Features.Llm.Options;
+using Vowlt.Api.Features.Llm.Services;
 using Vowlt.Api.Features.Search.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -696,6 +699,167 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISearchService, SearchService>();
         return services;
     }
+    public static IServiceCollection AddVowltLlm(
+         this IServiceCollection services,
+         IConfiguration configuration,
+         IHostEnvironment environment)
+    {
+        // Create temporary logger for startup validation
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var logger = loggerFactory.CreateLogger("Vowlt.Startup");
 
+        logger.LogInformation("Configuring LLM services...");
+
+        // Bind LLM configuration
+        var llmOptions = new LlmOptions();
+        configuration.GetSection(LlmOptions.SectionName).Bind(llmOptions);
+        services.Configure<LlmOptions>(configuration.GetSection(LlmOptions.SectionName));
+
+        // Log provider selection
+        logger.LogInformation("Selected LLM provider: {Provider}", llmOptions.Provider);
+
+        // Validate provider selection
+        if (string.IsNullOrWhiteSpace(llmOptions.Provider))
+        {
+            throw new InvalidOperationException(
+                "LLM provider must be specified in configuration (Llm:Provider)");
+        }
+
+        // Register appropriate provider based on selection
+        switch (llmOptions.Provider.ToLowerInvariant())
+        {
+            case "gemini":
+                AddGeminiProvider(services, configuration, environment, logger);
+                break;
+
+            default:
+                throw new InvalidOperationException(
+                    $"Unsupported LLM provider: {llmOptions.Provider}. Supported providers: Gemini");
+        }
+
+        // Register tag generation service
+        services.AddScoped<ITagGenerationService, TagGenerationService>();
+
+        logger.LogInformation("LLM services configured successfully");
+        return services;
+    }
+
+    private static void AddGeminiProvider(
+        IServiceCollection services,
+        IConfiguration configuration,
+        IHostEnvironment environment,
+        ILogger logger)
+    {
+        logger.LogInformation("Configuring Gemini LLM provider...");
+
+        // Bind Gemini-specific options
+        var geminiOptions = new GeminiOptions();
+        configuration.GetSection($"{LlmOptions.SectionName}:Gemini").Bind(geminiOptions);
+        services.Configure<GeminiOptions>(configuration.GetSection($"{LlmOptions.SectionName}:Gemini"));
+
+        // Get API key from environment variable
+        var apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+
+        // Environment-aware validation
+        if (environment.IsProduction())
+        {
+            // Production: Strict validation
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                throw new InvalidOperationException(
+                    "GEMINI_API_KEY environment variable is required in production");
+            }
+
+            if (string.IsNullOrWhiteSpace(geminiOptions.BaseUrl))
+            {
+                throw new InvalidOperationException(
+                    "Gemini BaseUrl must be specified in production");
+            }
+
+            if (geminiOptions.BaseUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(
+                    "Gemini BaseUrl cannot be localhost in production");
+            }
+
+            logger.LogInformation("Gemini API key: Loaded from environment ✓");
+        }
+        else
+        {
+            // Development: Warnings only
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                logger.LogWarning(
+                    "GEMINI_API_KEY not set. AI tag generation will fail. " +
+                    "Set the environment variable or add to .env file");
+            }
+            else
+            {
+                logger.LogInformation("Gemini API key: Loaded from environment ✓");
+            }
+        }
+
+        // Log configuration details
+        logger.LogInformation("Gemini configuration:");
+        logger.LogInformation("  Model: {Model}", geminiOptions.Model);
+        logger.LogInformation("  BaseUrl: {BaseUrl}", geminiOptions.BaseUrl);
+        logger.LogInformation("  Timeout: {Timeout}s", geminiOptions.TimeoutSeconds);
+
+        // Register Gemini LLM service with HTTP client
+        services.AddHttpClient<ILlmService, GeminiLlmService>((serviceProvider, client) =>
+        {
+            var options = serviceProvider.GetRequiredService<IOptions<GeminiOptions>>().Value;
+
+            client.BaseAddress = new Uri(options.BaseUrl);
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+
+            // Add Gemini API key header if available
+            if (!string.IsNullOrWhiteSpace(apiKey))
+            {
+                client.DefaultRequestHeaders.Add("x-goog-api-key", apiKey);
+            }
+        })
+        .AddPolicyHandler((serviceProvider, _) =>
+        {
+            var policyLogger = serviceProvider.GetRequiredService<ILogger<GeminiLlmService>>();
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .Or<TimeoutException>()
+                .WaitAndRetryAsync(
+                    retryCount: 3,
+                    sleepDurationProvider: retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt)),
+                    onRetry: (outcome, timespan, retryCount, context) =>
+                    {
+                        policyLogger.LogWarning(
+                            "Gemini API retry {RetryCount} after {Delay}s. Reason: {Reason}",
+                            retryCount,
+                            timespan.TotalSeconds,
+                            outcome.Exception?.Message ?? outcome.Result?.StatusCode.ToString() ?? "Unknown");
+                    });
+        })
+        .AddPolicyHandler((serviceProvider, _) =>
+        {
+            var policyLogger = serviceProvider.GetRequiredService<ILogger<GeminiLlmService>>();
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .Or<TimeoutException>()
+                .CircuitBreakerAsync(
+                    handledEventsAllowedBeforeBreaking: 5,
+                    durationOfBreak: TimeSpan.FromSeconds(30),
+                    onBreak: (outcome, duration) =>
+                    {
+                        policyLogger.LogError(
+                            "Gemini API circuit breaker opened for {Duration}s. Reason: {Reason}",
+                            duration.TotalSeconds,
+                            outcome.Exception?.Message ?? outcome.Result?.StatusCode.ToString() ?? "Unknown");
+                    },
+                    onReset: () =>
+                    {
+                        policyLogger.LogInformation("Gemini API circuit breaker reset - service recovered");
+                    });
+        });
+
+        logger.LogInformation("Gemini provider configured successfully");
+    }
 }
 

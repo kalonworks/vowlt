@@ -29,6 +29,7 @@ builder.Services.AddVowltCors(builder.Environment);
 builder.Services.AddVowltSwagger();
 builder.Services.AddVowltEmbedding(builder.Configuration, builder.Environment);
 builder.Services.AddVowltBookmarks();
+builder.Services.AddVowltLlm(builder.Configuration, builder.Environment);
 builder.Services.AddVowltSearch();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();

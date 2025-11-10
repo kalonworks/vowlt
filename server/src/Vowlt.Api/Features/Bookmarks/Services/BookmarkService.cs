@@ -5,6 +5,7 @@ using Vowlt.Api.Features.Bookmarks.DTOs;
 using Vowlt.Api.Features.Bookmarks.Models;
 using Vowlt.Api.Features.Embedding.Options;
 using Vowlt.Api.Features.Embedding.Services;
+using Vowlt.Api.Features.Llm.Services;
 using Vowlt.Api.Shared.Models;
 
 namespace Vowlt.Api.Features.Bookmarks.Services;
@@ -14,6 +15,7 @@ public class BookmarkService(
     IEmbeddingService embeddingService,
     IOptions<EmbeddingOptions> embeddingOptions,
     TimeProvider timeProvider,
+    ITagGenerationService tagGenerationService,
     ILogger<BookmarkService> logger) : IBookmarkService
 {
     private readonly EmbeddingOptions _embeddingOptions = embeddingOptions.Value;
@@ -80,6 +82,27 @@ public class BookmarkService(
                 "Failed to generate embedding for bookmark. Bookmark creation aborted.");
             return Result<BookmarkDto>.Failure(
                 "Failed to generate embedding. Please try again later.");
+        }
+
+        // Generate AI tags (non-blocking - don't fail bookmark creation)
+        try
+        {
+            var generatedTags = await tagGenerationService.GenerateTagsAsync(
+                bookmark.Title,
+                bookmark.Description,
+                bookmark.Notes,
+                cancellationToken);
+
+            if (generatedTags.Count > 0)
+            {
+                bookmark.SetGeneratedTags(generatedTags, timeProvider.GetUtcNow().UtcDateTime);
+            }
+        }
+        catch (Exception tagEx)
+        {
+            logger.LogWarning(
+                tagEx,
+                "Failed to generate AI tags for bookmark. Proceeding without generated tags.");
         }
 
         // 5. Save to database
@@ -252,6 +275,26 @@ public class BookmarkService(
                 bookmark.Id);
             return Result<BookmarkDto>.Failure(
                 "Failed to regenerate embedding. Update aborted.");
+        }
+        // Regenerate AI tags (non-blocking - don't fail bookmark update)
+        try
+        {
+            var generatedTags = await tagGenerationService.GenerateTagsAsync(
+                bookmark.Title,
+                bookmark.Description,
+                bookmark.Notes,
+                cancellationToken);
+
+            if (generatedTags.Count > 0)
+            {
+                bookmark.SetGeneratedTags(generatedTags, timeProvider.GetUtcNow().UtcDateTime);
+            }
+        }
+        catch (Exception tagEx)
+        {
+            logger.LogWarning(
+                tagEx,
+                "Failed to regenerate AI tags for bookmark. Proceeding without updated tags.");
         }
 
         await context.SaveChangesAsync(cancellationToken);
