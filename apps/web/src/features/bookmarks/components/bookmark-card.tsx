@@ -56,15 +56,31 @@ export function BookmarkCard({ bookmark }: BookmarkCardProps) {
       )}
 
       <CardFooter className="flex flex-col items-start gap-3">
-        {/* Tags */}
-        {bookmark.tags && bookmark.tags.length > 0 && (
+        {/* User Tags */}
+        {bookmark.tags.length > 0 && (
           <div className="flex flex-wrap gap-1 w-full">
             {bookmark.tags.map((tag) => (
               <span
                 key={tag}
-                className="inline-flex items-center px-2 py-0.5 text-xs bg-secondary text-secondary-foreground 
-  rounded-md"
+                className="inline-flex items-center px-2 py-0.5 text-xs bg-primary/10 text-primary border border-primary/20 
+  rounded-md font-medium"
               >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* AI-Generated Tags */}
+        {bookmark.generatedTags.length > 0 && (
+          <div className="flex flex-wrap gap-1 w-full">
+            {bookmark.generatedTags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-secondary text-secondary-foreground 
+  rounded-md opacity-75"
+              >
+                <span className="text-[10px]">✨</span>
                 {tag}
               </span>
             ))}

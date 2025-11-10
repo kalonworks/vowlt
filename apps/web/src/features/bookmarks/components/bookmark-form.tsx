@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import React from "react";
 
 interface BookmarkFormProps {
   defaultValues?: Partial<BookmarkFormData>;
@@ -38,28 +39,6 @@ export function BookmarkForm({
       tags: defaultValues?.tags || [],
     },
   });
-
-  const tags = watch("tags") || [];
-
-  const handleAddTag = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const input = e.currentTarget;
-      const newTag = input.value.trim();
-
-      if (newTag && !tags.includes(newTag) && tags.length < 20) {
-        setValue("tags", [...tags, newTag]);
-        input.value = "";
-      }
-    }
-  };
-
-  const handleRemoveTag = (tagToRemove: string) => {
-    setValue(
-      "tags",
-      tags.filter((tag) => tag !== tagToRemove)
-    );
-  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -132,33 +111,59 @@ export function BookmarkForm({
       {/* Tags Field */}
       <div className="space-y-2">
         <Label htmlFor="tags">Tags</Label>
-        <Input
-          id="tags"
-          placeholder="Type a tag and press Enter"
-          onKeyDown={handleAddTag}
-          disabled={isSubmitting}
+        <Controller
+          name="tags"
+          control={control}
+          render={({ field }) => {
+            const handleInputChange = (
+              e: React.ChangeEvent<HTMLInputElement>
+            ) => {
+              let value = e.target.value;
+
+              // Replace space with ", " automatically
+              if (value.endsWith(" ") && !value.endsWith(", ")) {
+                value = value.slice(0, -1) + ", ";
+              }
+
+              e.target.value = value;
+            };
+
+            const convertToArray = (value: string) => {
+              // Convert comma/space-separated string to array
+              const tagsArray = value
+                .split(/[,\s]+/) // Split by comma OR space
+                .map((tag) => tag.trim())
+                .filter((tag) => tag.length > 0);
+
+              field.onChange(tagsArray);
+            };
+
+            const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+              convertToArray(e.target.value);
+            };
+
+            const handleKeyDown = (
+              e: React.KeyboardEvent<HTMLInputElement>
+            ) => {
+              if (e.key === "Enter") {
+                // Convert tags before form submission
+                convertToArray(e.currentTarget.value);
+              }
+            };
+
+            return (
+              <Input
+                id="tags"
+                placeholder="technology react frontend"
+                defaultValue={field.value?.join(", ") || ""}
+                onChange={handleInputChange}
+                onBlur={handleBlur}
+                onKeyDown={handleKeyDown}
+                disabled={isSubmitting}
+              />
+            );
+          }}
         />
-        {tags.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2">
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="inline-flex items-center gap-1 px-2 py-1 text-sm bg-secondary text-secondary-foreground 
-  rounded-md"
-              >
-                {tag}
-                <button
-                  type="button"
-                  onClick={() => handleRemoveTag(tag)}
-                  disabled={isSubmitting}
-                  className="hover:text-destructive"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
         {errors.tags && (
           <p className="text-sm text-destructive">{errors.tags.message}</p>
         )}
