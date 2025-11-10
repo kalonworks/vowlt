@@ -14,5 +14,7 @@ public record BookmarkDto
     public required DateTime CreatedAt { get; init; }
     public required DateTime UpdatedAt { get; init; }
     public DateTime? LastAccessedAt { get; init; }
+    public List<string> Tags { get; init; } = [];
+    public List<string> GeneratedTags { get; init; } = [];
     public bool HasEmbedding { get; init; }
 }

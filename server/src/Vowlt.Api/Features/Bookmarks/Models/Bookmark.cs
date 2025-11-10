@@ -31,6 +31,10 @@ public class Bookmark
     public DateTime CreatedAt { get; private set; }
     public DateTime UpdatedAt { get; private set; }
     public DateTime? LastAccessedAt { get; private set; }
+    public List<string> Tags { get; private set; } = [];
+    public List<string> GeneratedTags { get; private set; } = [];
+
+
 
     // EF Core requires parameterless constructor
     private Bookmark() { }
@@ -134,6 +138,7 @@ public class Bookmark
     }
 
     // Get text for embedding (combines multiple fields)
+    // Get text for embedding (combines multiple fields including tags)
     public string GetTextForEmbedding()
     {
         var parts = new List<string> { Title };
@@ -144,7 +149,32 @@ public class Bookmark
         if (!string.IsNullOrWhiteSpace(Notes))
             parts.Add(Notes);
 
+        if (Tags.Count > 0)
+            parts.Add(string.Join(" ", Tags));
+
+        if (GeneratedTags.Count > 0)
+            parts.Add(string.Join(" ", GeneratedTags));
+
         return string.Join(" ", parts);
+    }
+
+    public void SetTags(List<string> tags, DateTime now)
+    {
+        Tags = tags ?? [];
+        UpdatedAt = now;
+    }
+
+    // Set AI-generated tags
+    public void SetGeneratedTags(List<string> tags, DateTime now)
+    {
+        GeneratedTags = tags ?? [];
+        UpdatedAt = now;
+    }
+
+    // Get all tags (user + AI combined, distinct)
+    public List<string> GetAllTags()
+    {
+        return Tags.Concat(GeneratedTags).Distinct().ToList();
     }
 }
 

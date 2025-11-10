@@ -51,6 +51,12 @@ public class BookmarkService(
             bookmark.SetFullText(request.FullText, timeProvider.GetUtcNow().UtcDateTime);
         }
 
+        // Set user tags if provided
+        if (request.Tags is not null && request.Tags.Count > 0)
+        {
+            bookmark.SetTags(request.Tags, timeProvider.GetUtcNow().UtcDateTime);
+        }
+
         // 4. Generate embedding (CRITICAL: This is synchronous - fails if embedding service is down)
         try
         {
@@ -214,6 +220,12 @@ public class BookmarkService(
         if (!string.IsNullOrWhiteSpace(request.FullText))
         {
             bookmark.SetFullText(request.FullText, timeProvider.GetUtcNow().UtcDateTime);
+        }
+
+        // Update user tags if provided
+        if (request.Tags is not null)
+        {
+            bookmark.SetTags(request.Tags, timeProvider.GetUtcNow().UtcDateTime);
         }
 
         // Regenerate embedding (content changed)
@@ -399,6 +411,8 @@ public class BookmarkService(
             CreatedAt = bookmark.CreatedAt,
             UpdatedAt = bookmark.UpdatedAt,
             LastAccessedAt = bookmark.LastAccessedAt,
+            Tags = bookmark.Tags,
+            GeneratedTags = bookmark.GeneratedTags,
             HasEmbedding = bookmark.Embedding != null
         };
     }

@@ -49,6 +49,22 @@ public class VowltDbContext(DbContextOptions<VowltDbContext> options) : Identity
             entity.Property(e => e.Title).IsRequired().HasMaxLength(500);
             entity.Property(e => e.Description).HasMaxLength(2000);
             entity.Property(e => e.Domain).HasMaxLength(255);
+
+            // Configure user-defined tags
+            entity.Property(e => e.Tags)
+                .HasColumnType("text[]")
+                .HasDefaultValueSql("'{}'");
+
+            entity.HasIndex(e => e.Tags)
+                .HasMethod("gin");
+
+            // Configure AI-generated tags
+            entity.Property(e => e.GeneratedTags)
+                .HasColumnType("text[]")
+                .HasDefaultValueSql("'{}'");
+
+            entity.HasIndex(e => e.GeneratedTags)
+                .HasMethod("gin");
         });
 
         modelBuilder.Entity<ApplicationUser>(entity =>
