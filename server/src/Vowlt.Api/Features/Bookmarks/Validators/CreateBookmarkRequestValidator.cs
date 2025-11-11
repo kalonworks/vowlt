@@ -14,8 +14,8 @@ public class CreateBookmarkRequestValidator : AbstractValidator<CreateBookmarkRe
             .Must(BeAValidUrl).WithMessage("URL must be a valid HTTP or HTTPS URL");
 
         RuleFor(x => x.Title)
-            .NotEmpty()
-            .MaximumLength(500);
+            .MaximumLength(500)
+            .When(x => x.Title != null);
 
         RuleFor(x => x.Description)
             .MaximumLength(2000)

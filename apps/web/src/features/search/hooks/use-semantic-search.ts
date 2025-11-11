@@ -5,9 +5,9 @@ import type { SearchRequest } from "../types";
 export const useSemanticSearch = (request: SearchRequest) => {
   const { query, ...filters } = request;
 
-  // Match backend validation: query must be 4-500 characters
+  // Match backend validation: query must be 3-500 characters
   const trimmedQuery = query.trim();
-  const isValidQuery = trimmedQuery.length >= 4 && trimmedQuery.length <= 500;
+  const isValidQuery = trimmedQuery.length >= 3 && trimmedQuery.length <= 500;
 
   return useQuery({
     queryKey: ["search", "semantic", trimmedQuery, filters],

@@ -43,7 +43,7 @@ public class Bookmark
     public static Bookmark Create(
         Guid userId,
         string url,
-        string title,
+        string? title,
         DateTime now,
         string? description = null,
         string? notes = null)
@@ -54,9 +54,6 @@ public class Bookmark
 
         if (string.IsNullOrWhiteSpace(url))
             throw new ArgumentException("URL cannot be empty", nameof(url));
-
-        if (string.IsNullOrWhiteSpace(title))
-            throw new ArgumentException("Title cannot be empty", nameof(title));
 
         // Extract domain from URL
         string? domain = null;
@@ -75,7 +72,7 @@ public class Bookmark
             Id = Guid.NewGuid(),
             UserId = userId,
             Url = url.Trim(),
-            Title = title.Trim(),
+            Title = title ?? domain!,
             Description = description?.Trim(),
             Notes = notes?.Trim(),
             Domain = domain,

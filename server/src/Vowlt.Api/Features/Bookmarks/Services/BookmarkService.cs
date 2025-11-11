@@ -6,6 +6,7 @@ using Vowlt.Api.Features.Bookmarks.Models;
 using Vowlt.Api.Features.Embedding.Options;
 using Vowlt.Api.Features.Embedding.Services;
 using Vowlt.Api.Features.Llm.Services;
+using Vowlt.Api.Features.Metadata.Services;
 using Vowlt.Api.Shared.Models;
 
 namespace Vowlt.Api.Features.Bookmarks.Services;
@@ -16,6 +17,7 @@ public class BookmarkService(
     IOptions<EmbeddingOptions> embeddingOptions,
     TimeProvider timeProvider,
     ITagGenerationService tagGenerationService,
+    IMetadataExtractionService metadataExtractionService,
     ILogger<BookmarkService> logger) : IBookmarkService
 {
     private readonly EmbeddingOptions _embeddingOptions = embeddingOptions.Value;
@@ -46,6 +48,64 @@ public class BookmarkService(
             timeProvider.GetUtcNow().UtcDateTime,
             request.Description,
             request.Notes);
+
+        // 3. Extract metadata from URL (non-blocking - enriches bookmark if successful)
+        try
+        {
+            logger.LogInformation(
+                "Extracting metadata for bookmark from {Url}",
+                request.Url);
+
+            var metadata = await metadataExtractionService.ExtractMetadataAsync(
+                request.Url,
+                cancellationToken);
+
+            if (metadata != null)
+            {
+                // Apply metadata to bookmark (user-provided values take priority)
+
+                // Update title if user didn't provide one
+                if (string.IsNullOrWhiteSpace(request.Title) && !string.IsNullOrEmpty(metadata.BestTitle))
+                {
+                    bookmark.Update(
+                        timeProvider.GetUtcNow().UtcDateTime,
+                        title: metadata.BestTitle);
+                }
+
+                // Update description if user didn't provide one
+                if (string.IsNullOrWhiteSpace(request.Description) && !string.IsNullOrEmpty(metadata.BestDescription))
+                {
+                    bookmark.Update(
+                        timeProvider.GetUtcNow().UtcDateTime,
+                        description: metadata.BestDescription);
+                }
+
+                // Set metadata (favicon and OG image)
+                bookmark.SetMetadata(
+                    metadata.FaviconUrl,
+                    metadata.BestImage,
+                    timeProvider.GetUtcNow().UtcDateTime);
+
+                logger.LogInformation(
+                    "Successfully enriched bookmark with metadata. " +
+                    "Title={HasTitle}, Description={HasDesc}, Image={HasImage}, Favicon={HasFavicon}",
+                    !string.IsNullOrEmpty(metadata.BestTitle),
+                    !string.IsNullOrEmpty(metadata.BestDescription),
+                    !string.IsNullOrEmpty(metadata.BestImage),
+                    !string.IsNullOrEmpty(metadata.FaviconUrl));
+            }
+            else
+            {
+                logger.LogWarning(
+                    "No metadata extracted for bookmark. Proceeding without metadata enrichment.");
+            }
+        }
+        catch (Exception metadataEx)
+        {
+            logger.LogWarning(
+                metadataEx,
+                "Failed to extract metadata for bookmark. Proceeding without metadata enrichment.");
+        }
 
         // 3. Set optional full text if provided
         if (!string.IsNullOrWhiteSpace(request.FullText))

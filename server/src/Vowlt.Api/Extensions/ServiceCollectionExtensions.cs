@@ -21,6 +21,8 @@ using Vowlt.Api.Features.Embedding.Options;
 using Vowlt.Api.Features.Embedding.Services;
 using Vowlt.Api.Features.Llm.Options;
 using Vowlt.Api.Features.Llm.Services;
+using Vowlt.Api.Features.Metadata.Options;
+using Vowlt.Api.Features.Metadata.Services;
 using Vowlt.Api.Features.Search.Services;
 
 namespace Microsoft.Extensions.DependencyInjection;
@@ -741,6 +743,118 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ITagGenerationService, TagGenerationService>();
 
         logger.LogInformation("LLM services configured successfully");
+        return services;
+    }
+
+    public static IServiceCollection AddVowltMetadataExtraction(
+          this IServiceCollection services,
+          IConfiguration configuration,
+          IHostEnvironment environment)
+    {
+        // Create temporary logger for startup validation
+        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+        var logger = loggerFactory.CreateLogger("Vowlt.Startup");
+
+        logger.LogInformation("Configuring metadata extraction service...");
+
+        // Bind configuration options
+        var configSection = configuration.GetSection(MetadataExtractionOptions.SectionName);
+        var options = configSection.Get<MetadataExtractionOptions>() ?? new MetadataExtractionOptions();
+        services.Configure<MetadataExtractionOptions>(configSection);
+
+        // Log configuration details
+        logger.LogInformation(
+            "Metadata extraction timeout loaded from configuration: {Timeout}s",
+            options.TimeoutSeconds);
+        logger.LogInformation(
+            "Metadata extraction max retries loaded from configuration: {MaxRetries}",
+            options.MaxRetries);
+        logger.LogInformation(
+            "Metadata extraction user agent: {UserAgent}",
+            options.UserAgent.Substring(0, Math.Min(50, options.UserAgent.Length)) + "...");
+
+        // Summary log
+        logger.LogInformation(
+            "Metadata extraction service configured from configuration: " +
+            "Timeout={Timeout}s, MaxRetries={MaxRetries}, FollowRedirects={FollowRedirects}",
+            options.TimeoutSeconds,
+            options.MaxRetries,
+            options.FollowRedirects);
+
+        // Register HTTP client with Polly policies
+        services.AddHttpClient<IMetadataExtractionService, MetadataExtractionService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
+
+            // Modern browser headers to avoid bot detection
+            client.DefaultRequestHeaders.Add("User-Agent", options.UserAgent);
+            client.DefaultRequestHeaders.Add("Accept",
+                "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+            client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9");
+            client.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+            client.DefaultRequestHeaders.Add("DNT", "1"); // Do Not Track
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        {
+            AllowAutoRedirect = options.FollowRedirects,
+            MaxAutomaticRedirections = options.MaxRedirects,
+            AutomaticDecompression = System.Net.DecompressionMethods.All,
+            UseCookies = false // Don't maintain cookies for scraping
+        })
+        .AddPolicyHandler((serviceProvider, _) =>
+        {
+            var policyLogger = serviceProvider.GetRequiredService<ILogger<MetadataExtractionService>>();
+
+            // Retry policy: exponential backoff with jitter
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .Or<TimeoutException>()
+                .WaitAndRetryAsync(
+                    retryCount: options.MaxRetries,
+                    sleepDurationProvider: retryAttempt =>
+                    {
+                        // Exponential backoff with jitter (prevents retry storms)
+                        var baseDelay = TimeSpan.FromMilliseconds(
+                            options.RetryDelayMs * Math.Pow(2, retryAttempt - 1));
+                        var jitter = TimeSpan.FromMilliseconds(Random.Shared.Next(0, 1000));
+                        return baseDelay + jitter;
+                    },
+                    onRetry: (outcome, timespan, retryCount, context) =>
+                    {
+                        policyLogger.LogWarning(
+                            "Metadata extraction retry {RetryCount}/{MaxRetries} after {Delay}ms. Reason: {Reason}",
+                            retryCount,
+                            options.MaxRetries,
+                            timespan.TotalMilliseconds,
+                            outcome.Exception?.Message ?? outcome.Result?.StatusCode.ToString() ?? "Unknown");
+                    });
+        })
+        .AddPolicyHandler((serviceProvider, _) =>
+        {
+            var policyLogger = serviceProvider.GetRequiredService<ILogger<MetadataExtractionService>>();
+
+            // Circuit breaker: open after 5 consecutive failures
+            return HttpPolicyExtensions
+                .HandleTransientHttpError()
+                .Or<TimeoutException>()
+                .CircuitBreakerAsync(
+                    handledEventsAllowedBeforeBreaking: 5,
+                    durationOfBreak: TimeSpan.FromSeconds(30),
+                    onBreak: (outcome, duration) =>
+                    {
+                        policyLogger.LogError(
+                            "Metadata extraction circuit breaker OPENED for {Duration}s. Reason: {Reason}",
+                            duration.TotalSeconds,
+                            outcome.Exception?.Message ?? outcome.Result?.StatusCode.ToString() ?? "Unknown");
+                    },
+                    onReset: () =>
+                    {
+                        policyLogger.LogInformation(
+                            "Metadata extraction circuit breaker RESET - service recovered");
+                    });
+        });
+
+        logger.LogInformation("Metadata extraction service configured successfully");
         return services;
     }
 

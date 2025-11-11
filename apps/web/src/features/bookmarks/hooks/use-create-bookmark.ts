@@ -32,6 +32,7 @@ export const useCreateBookmark = () => {
           userId: "",
           ...newBookmark,
           tags: newBookmark.tags || [],
+          generatedTags: [],
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         };
