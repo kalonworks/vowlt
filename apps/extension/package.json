@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite build --watch --mode development",
-    "build": "vite build && npm run copy-public",
+    "build": "vite build --mode development && npm run copy-public",
+    "build:prod": "vite build && npm run copy-public",
     "copy-public": "cp -r public/* dist/",
     "preview": "vite preview",
     "type-check": "tsc --noEmit"

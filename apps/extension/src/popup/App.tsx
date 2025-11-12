@@ -1,181 +1,204 @@
 import { useState, useEffect } from "react";
+import type { AuthState } from "../types/auth";
 
-export default function App() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [token, setToken] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "success" | "error">(
-    "idle"
-  );
-  const [message, setMessage] = useState("");
+function App() {
+  const [authState, setAuthState] = useState<AuthState>({
+    isAuthenticated: false,
+    isLoading: true,
+  });
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
 
-  // Check if user is connected on mount
+  // Check auth status on mount
   useEffect(() => {
-    chrome.storage.sync.get(["authToken"], (result) => {
-      if (result.authToken) {
-        setIsConnected(true);
-        setToken(result.authToken);
-      }
-    });
+    checkAuthStatus();
   }, []);
 
-  // Save token to chrome.storage
-  const handleConnect = () => {
-    if (!token.trim()) {
-      setMessage("Please enter a token");
-      return;
+  const checkAuthStatus = async () => {
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "GET_AUTH_STATUS",
+      });
+      if (response.success) {
+        setAuthState({ ...response.data, isLoading: false });
+      } else {
+        setAuthState({
+          isAuthenticated: false,
+          isLoading: false,
+          error: response.error,
+        });
+      }
+    } catch (error) {
+      console.error("Error checking auth status:", error);
+      setAuthState({ isAuthenticated: false, isLoading: false });
     }
-
-    chrome.storage.sync.set({ authToken: token }, () => {
-      setIsConnected(true);
-      setMessage("Connected successfully!");
-      setTimeout(() => setMessage(""), 2000);
-    });
   };
 
-  // Disconnect (remove token)
-  const handleDisconnect = () => {
-    chrome.storage.sync.remove(["authToken"], () => {
-      setIsConnected(false);
-      setToken("");
-      setMessage("Disconnected");
-      setTimeout(() => setMessage(""), 2000);
-    });
+  const handleLogin = async () => {
+    setAuthState({ ...authState, isLoading: true, error: undefined });
+    try {
+      const response = await chrome.runtime.sendMessage({
+        type: "START_OAUTH_FLOW",
+      });
+      if (response.success) {
+        setAuthState({ ...response.data, isLoading: false });
+        setMessage({ type: "success", text: "Successfully logged in!" });
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        setAuthState({
+          isAuthenticated: false,
+          isLoading: false,
+          error: response.error,
+        });
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      setAuthState({
+        isAuthenticated: false,
+        isLoading: false,
+        error: error instanceof Error ? error.message : "Login failed",
+      });
+    }
   };
 
-  // Save current page as bookmark
+  const handleLogout = async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: "LOGOUT" });
+      setAuthState({ isAuthenticated: false, isLoading: false });
+      setMessage({ type: "success", text: "Logged out successfully" });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
+
   const handleSaveBookmark = async () => {
-    setStatus("saving");
-    setMessage("Saving...");
+    setIsSaving(true);
+    setMessage(null);
 
     try {
-      // Get current tab info
+      // Get current tab
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true,
       });
 
       if (!tab.url || !tab.title) {
-        throw new Error("Could not get page information");
+        throw new Error("Could not get current tab information");
       }
 
-      // Send message to background script to save bookmark
-      chrome.runtime.sendMessage(
-        {
-          action: "saveBookmark",
-          url: tab.url,
-          title: tab.title,
-        },
-        (response) => {
-          if (response.success) {
-            setStatus("success");
-            setMessage("✓ Saved to Vowlt!");
-            setTimeout(() => {
-              setStatus("idle");
-              setMessage("");
-            }, 2000);
-          } else {
-            setStatus("error");
-            setMessage(`Error: ${response.error || "Unknown error"}`);
-            setTimeout(() => {
-              setStatus("idle");
-              setMessage("");
-            }, 3000);
-          }
-        }
-      );
+      // Send save request to service worker
+      const response = await chrome.runtime.sendMessage({
+        action: "saveBookmark",
+        url: tab.url,
+        title: tab.title,
+      });
+
+      if (response.success) {
+        setMessage({ type: "success", text: "Saved to Vowlt!" });
+      } else {
+        setMessage({
+          type: "error",
+          text: response.error || "Failed to save bookmark",
+        });
+      }
     } catch (error) {
-      setStatus("error");
-      setMessage(
-        `Error: ${error instanceof Error ? error.message : "Unknown error"}`
-      );
-      setTimeout(() => {
-        setStatus("idle");
-        setMessage("");
-      }, 3000);
+      console.error("Error saving bookmark:", error);
+      setMessage({
+        type: "error",
+        text: error instanceof Error ? error.message : "An error occurred",
+      });
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => setMessage(null), 3000);
     }
   };
 
+  if (authState.isLoading) {
+    return (
+      <div className="w-80 p-6 bg-white">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authState.isAuthenticated) {
+    return (
+      <div className="w-80 p-6 bg-white">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Vowlt</h1>
+          <p className="text-gray-600 mb-6">Bookmark Manager</p>
+
+          {authState.error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{authState.error}</p>
+            </div>
+          )}
+
+          <button
+            onClick={handleLogin}
+            className="w-full py-3 px-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Login with OAuth
+          </button>
+
+          <p className="mt-4 text-xs text-gray-500">
+            Secure OAuth 2.1 authentication with PKCE
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="w-80 p-4 bg-white">
-      <div className="mb-4">
-        <h1 className="text-xl font-bold text-gray-900">Vowlt</h1>
-        <p className="text-sm text-gray-600">Bookmark Manager</p>
+    <div className="w-80 p-6 bg-white">
+      <div className="mb-6">
+        <h1 className="text-xl font-bold text-gray-800">Vowlt</h1>
+        {authState.userEmail && (
+          <p className="text-sm text-gray-600 mt-1">{authState.userEmail}</p>
+        )}
       </div>
 
-      {!isConnected ? (
-        // Connect screen
-        <div className="space-y-3">
-          <div>
-            <label
-              htmlFor="token"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Auth Token
-            </label>
-            <input
-              id="token"
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Paste your token here"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              onKeyDown={(e) => e.key === "Enter" && handleConnect()}
-            />
-            <p className="mt-1 text-xs text-gray-500">
-              Get your token from Vowlt settings
-            </p>
-          </div>
-
-          <button
-            onClick={handleConnect}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
+      {message && (
+        <div
+          className={`mb-4 p-3 rounded-lg ${
+            message.type === "success"
+              ? "bg-green-50 border border-green-200"
+              : "bg-red-50 border border-red-200"
+          }`}
+        >
+          <p
+            className={`text-sm ${
+              message.type === "success" ? "text-green-600" : "text-red-600"
+            }`}
           >
-            Connect
-          </button>
-
-          {message && (
-            <p className="text-sm text-center text-gray-600">{message}</p>
-          )}
-        </div>
-      ) : (
-        // Save bookmark screen
-        <div className="space-y-3">
-          <button
-            onClick={handleSaveBookmark}
-            disabled={status === "saving"}
-            className={`w-full py-2 px-4 rounded-md transition-colors ${
-              status === "success"
-                ? "bg-green-600 text-white"
-                : status === "error"
-                ? "bg-red-600 text-white"
-                : "bg-blue-600 text-white hover:bg-blue-700"
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
-          >
-            {status === "saving"
-              ? "Saving..."
-              : status === "success"
-              ? "Saved!"
-              : "Save Current Page"}
-          </button>
-
-          {message && (
-            <p
-              className={`text-sm text-center ${
-                status === "error" ? "text-red-600" : "text-gray-600"
-              }`}
-            >
-              {message}
-            </p>
-          )}
-
-          <button
-            onClick={handleDisconnect}
-            className="w-full text-sm text-gray-600 hover:text-gray-800 py-1"
-          >
-            Disconnect
-          </button>
+            {message.text}
+          </p>
         </div>
       )}
+
+      <button
+        onClick={handleSaveBookmark}
+        disabled={isSaving}
+        className="w-full py-3 px-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors mb-3"
+      >
+        {isSaving ? "Saving..." : "Save Current Page"}
+      </button>
+
+      <button
+        onClick={handleLogout}
+        className="w-full py-2 px-4 bg-gray-100 text-gray-700 font-medium rounded-lg hover:bg-gray-200 transition-colors"
+      >
+        Disconnect
+      </button>
     </div>
   );
 }
+
+export default App;

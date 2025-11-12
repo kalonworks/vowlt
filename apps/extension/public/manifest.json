@@ -21,6 +21,6 @@
     "service_worker": "background.js",
     "type": "module"
   },
-  "permissions": ["storage", "activeTab", "tabs", "notifications"],
+  "permissions": ["storage", "activeTab", "tabs", "notifications", "identity"],
   "host_permissions": ["http://localhost:5000/*", "https://vowlt.com/*"]
 }

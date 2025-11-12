@@ -1,3 +1,4 @@
+
 using Microsoft.EntityFrameworkCore;
 using Vowlt.Api.Features.OAuth.Models;
 
@@ -32,19 +33,6 @@ public static class OAuthClientSeeder
 
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        // Production client: Chrome/Edge/Brave extension
-        var chromeExtension = OAuthClient.Create(
-            clientId: "vowlt-chrome-extension",
-            name: "Vowlt Chrome Extension",
-            description: "Official Vowlt browser extension for Chromium-based browsers",
-            allowedRedirectUris: "https://*.chromiumapp.org/*",
-            accessTokenLifetimeMinutes: 5,      // Very short-lived for security
-            refreshTokenLifetimeDays: 30,       // Monthly re-auth
-            now: now
-        );
-
-        context.OAuthClients.Add(chromeExtension);
-
         // Development-only client for testing
         if (environment.IsDevelopment() || environment.IsStaging() || environment.IsEnvironment("Test"))
         {
@@ -59,12 +47,25 @@ public static class OAuthClientSeeder
             );
 
             context.OAuthClients.Add(devClient);
-            logger.LogInformation("Added development OAuth client (dev/staging environment)");
+            logger.LogInformation("Added development OAuth client");
         }
+
+        // Chrome extension client (all environments)
+        var chromeExtension = OAuthClient.Create(
+            clientId: "vowlt-chrome-extension",
+            name: "Vowlt Chrome Extension",
+            description: "Official Vowlt browser extension for Chromium-based browsers",
+            allowedRedirectUris: "https://*.chromiumapp.org/*",
+            accessTokenLifetimeMinutes: 5,      // Very short-lived for security
+            refreshTokenLifetimeDays: 30,       // Monthly re-auth
+            now: now
+        );
+
+        context.OAuthClients.Add(chromeExtension);
 
         await context.SaveChangesAsync();
 
-        var seededCount = environment.IsDevelopment() ? 2 : 1;
+        var seededCount = environment.IsDevelopment() || environment.IsEnvironment("Test") ? 2 : 1;
         logger.LogInformation("✓ OAuth clients seeded successfully: {Count} clients added", seededCount);
     }
 }
