@@ -32,16 +32,21 @@ public class OAuthController(
     /// 6. Server redirects to redirect_uri with code and state
     /// 7. Extension extracts code from redirect URL
     /// </remarks>
+
+    /// <summary>
+    /// OAuth authorization endpoint (step 1 of the flow).
+    /// User must be authenticated. Creates an authorization code and redirects back to the client.
+    /// </summary>
     [HttpGet("authorize")]
-    [Authorize]
+    [Authorize(AuthenticationSchemes = "Identity.Application")]
     public async Task<IActionResult> Authorize([FromQuery] AuthorizeRequest request)
     {
-        logger.LogWarning("=== AUTHORIZE START === User: {User}, ClientId: {ClientId}",
+        logger.LogInformation("=== AUTHORIZE START === User: {User}, ClientId: {ClientId}",
             User?.Identity?.Name ?? "NULL",
             request.ClientId ?? "NULL");
 
         // Validate code challenge method
-        logger.LogWarning("Step 1: Validating code challenge method");
+        logger.LogInformation("Step 1: Validating code challenge method");
         if (request.CodeChallengeMethod != "S256")
         {
             logger.LogWarning("Invalid code_challenge_method: {Method}", request.CodeChallengeMethod);
@@ -49,7 +54,7 @@ public class OAuthController(
         }
 
         // Validate client and redirect URI
-        logger.LogWarning("Step 2: Validating client");
+        logger.LogInformation("Step 2: Validating client");
         var isValid = await oauthService.ValidateClientAndRedirectUriAsync(request.ClientId, request.RedirectUri);
         if (!isValid)
         {
@@ -58,10 +63,10 @@ public class OAuthController(
         }
 
         // Get current authenticated user
-        logger.LogWarning("Step 3: Getting user. User.Identity.IsAuthenticated={IsAuth}, Name={Name}",
+        logger.LogInformation("Step 3: Getting user. User.Identity.IsAuthenticated={IsAuth}, Name={Name}",
             User?.Identity?.IsAuthenticated, User?.Identity?.Name);
         var user = await userManager.GetUserAsync(User);
-        logger.LogWarning("Step 4: User result: {UserFound}", user != null);
+        logger.LogInformation("Step 4: User result: {UserFound}", user != null);
 
         if (user == null)
         {
@@ -69,7 +74,7 @@ public class OAuthController(
             return Unauthorized(new { error = "unauthorized", error_description = "User not authenticated" });
         }
 
-        logger.LogWarning("Step 5: Creating auth code for user {UserId}", user.Id);
+        logger.LogInformation("Step 5: Creating auth code for user {UserId}", user.Id);
         var authCode = await oauthService.CreateAuthorizationCodeAsync(
             userId: user.Id,
             userEmail: user.Email!,
@@ -79,7 +84,7 @@ public class OAuthController(
             codeChallengeMethod: request.CodeChallengeMethod,
             state: request.State);
 
-        logger.LogWarning("Step 6: Redirecting");
+        logger.LogInformation("Step 6: Redirecting to {RedirectUri} with code", request.RedirectUri);
         var redirectUrl = $"{request.RedirectUri}?code={authCode.Code}";
         if (!string.IsNullOrEmpty(request.State))
         {
@@ -88,8 +93,6 @@ public class OAuthController(
 
         return Redirect(redirectUrl);
     }
-
-
 
     /// <summary>
     /// OAuth token endpoint (step 2 of the flow).

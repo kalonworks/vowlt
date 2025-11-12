@@ -76,7 +76,7 @@ public static class ServiceCollectionExtensions
     }
 
     public static IServiceCollection AddVowltIdentity(
-        this IServiceCollection services)
+       this IServiceCollection services)
     {
         services.AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
         {
@@ -94,13 +94,23 @@ public static class ServiceCollectionExtensions
         .AddEntityFrameworkStores<VowltDbContext>()
         .AddDefaultTokenProviders();
 
+        // Configure cookie for OAuth flow
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.LoginPath = "/oauth/login";
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(15);
+            options.SlidingExpiration = true;
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SameSite = SameSiteMode.Lax;
+        });
+
         return services;
     }
 
     public static IServiceCollection AddVowltJwtAuthentication(
-      this IServiceCollection services,
-      IConfiguration configuration,
-      IWebHostEnvironment environment)  // ← Add this parameter
+    this IServiceCollection services,
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
     {
         services.Configure<JwtOptions>(
             configuration.GetSection(JwtOptions.SectionName));
@@ -151,10 +161,10 @@ public static class ServiceCollectionExtensions
         var logger = loggerFactory.CreateLogger("Authentication");
         logger.JwtConfigured(jwtOptions.Issuer, jwtOptions.Audience, jwtOptions.AccessTokenExpiryMinutes);
 
-
         services
             .AddAuthentication(options =>
             {
+                // JWT is default for API endpoints
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
@@ -176,7 +186,6 @@ public static class ServiceCollectionExtensions
                     ClockSkew = TimeSpan.Zero
                 };
             });
-
         services.AddAuthorization();
 
         services.AddSingleton(TimeProvider.System);
