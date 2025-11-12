@@ -46,7 +46,7 @@ public static class OAuthClientSeeder
         context.OAuthClients.Add(chromeExtension);
 
         // Development-only client for testing
-        if (environment.IsDevelopment() || environment.IsStaging())
+        if (environment.IsDevelopment() || environment.IsStaging() || environment.IsEnvironment("Test"))
         {
             var devClient = OAuthClient.Create(
                 clientId: "vowlt-dev-client",

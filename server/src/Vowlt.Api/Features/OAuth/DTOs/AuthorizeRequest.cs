@@ -1,5 +1,6 @@
 
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc;
 
 namespace Vowlt.Api.Features.OAuth.DTOs;
 
@@ -9,37 +10,24 @@ namespace Vowlt.Api.Features.OAuth.DTOs;
 /// </summary>
 public record AuthorizeRequest
 {
-    /// <summary>
-    /// The client identifier (e.g., "vowlt-extension")
-    /// </summary>
     [Required]
+    [FromQuery(Name = "client_id")]
     public required string ClientId { get; init; }
 
-    /// <summary>
-    /// The URI to redirect back to after authorization.
-    /// Must match one of the client's registered redirect URIs.
-    /// </summary>
     [Required]
+    [FromQuery(Name = "redirect_uri")]
     public required string RedirectUri { get; init; }
 
-    /// <summary>
-    /// PKCE code challenge derived from the code_verifier.
-    /// Base64-URL encoded SHA256 hash of the code_verifier.
-    /// </summary>
     [Required]
+    [FromQuery(Name = "code_challenge")]
     public required string CodeChallenge { get; init; }
 
-    /// <summary>
-    /// PKCE code challenge method. Must be "S256" (SHA-256).
-    /// OAuth 2.1 requires S256, plain is not allowed.
-    /// </summary>
     [Required]
+    [FromQuery(Name = "code_challenge_method")]
     public required string CodeChallengeMethod { get; init; }
 
-    /// <summary>
-    /// Optional state parameter for CSRF protection.
-    /// The client should verify this matches when receiving the callback.
-    /// </summary>
+    [FromQuery(Name = "state")]
     public string? State { get; init; }
 }
+
 

@@ -7,6 +7,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{BF10FBCF-0B8
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vowlt.Api", "src\Vowlt.Api\Vowlt.Api.csproj", "{DA0D814C-48FD-4CAC-B0B2-0CFFF11B1369}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5AC54736-535F-4ABE-88DD-7BA3EA33A0D9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Vowlt.Api.Tests", "tests\Vowlt.Api.Tests\Vowlt.Api.Tests.csproj", "{0DFE6654-2133-4694-A71F-0B596F30AA2C}"
+EndProject
 Global
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -32,8 +36,21 @@ Global
 		{DA0D814C-48FD-4CAC-B0B2-0CFFF11B1369}.Release|x64.Build.0 = Release|Any CPU
 		{DA0D814C-48FD-4CAC-B0B2-0CFFF11B1369}.Release|x86.ActiveCfg = Release|Any CPU
 		{DA0D814C-48FD-4CAC-B0B2-0CFFF11B1369}.Release|x86.Build.0 = Release|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Debug|x64.Build.0 = Debug|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Debug|x86.Build.0 = Debug|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Release|x64.ActiveCfg = Release|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Release|x64.Build.0 = Release|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Release|x86.ActiveCfg = Release|Any CPU
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
 		{DA0D814C-48FD-4CAC-B0B2-0CFFF11B1369} = {BF10FBCF-0B8C-4B74-B717-0D5C307669F8}
+		{0DFE6654-2133-4694-A71F-0B596F30AA2C} = {5AC54736-535F-4ABE-88DD-7BA3EA33A0D9}
 	EndGlobalSection
 EndGlobal

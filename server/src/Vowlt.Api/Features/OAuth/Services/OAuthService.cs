@@ -9,12 +9,13 @@ namespace Vowlt.Api.Features.OAuth.Services;
 /// Orchestrates OAuth 2.1 authorization code flow with PKCE.
 /// </summary>
 public class OAuthService(
-    VowltDbContext context,
-    PKCEValidator pkceValidator,
-    JwtTokenGenerator jwtTokenGenerator,
-    RefreshTokenService refreshTokenService,
-    TimeProvider timeProvider,
-    ILogger<OAuthService> logger)
+      VowltDbContext context,
+      PKCEValidator pkceValidator,
+      IJwtTokenGenerator jwtTokenGenerator,
+      IRefreshTokenService refreshTokenService,
+      TimeProvider timeProvider,
+      ILogger<OAuthService> logger)
+
 {
     /// <summary>
     /// Creates an authorization code for a user.
@@ -129,9 +130,8 @@ public class OAuthService(
         var refreshToken = await refreshTokenService.GenerateRefreshTokenAsync(
             authCode.UserId,
             client.RefreshTokenLifetimeDays,
-            ipAddress: null,
+            null,
             cancellationToken);
-
 
         var expiresAt = now.AddMinutes(client.AccessTokenLifetimeMinutes);
 

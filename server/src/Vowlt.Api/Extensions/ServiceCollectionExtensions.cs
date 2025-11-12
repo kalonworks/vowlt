@@ -34,12 +34,14 @@ public static class ServiceCollectionExtensions
       IConfiguration configuration,
       IWebHostEnvironment environment)
     {
-        var host = Environment.GetEnvironmentVariable("POSTGRES_HOST") ?? "localhost";
-        var port = Environment.GetEnvironmentVariable("POSTGRES_PORT") ?? "5432";
-        var database = Environment.GetEnvironmentVariable("POSTGRES_DB") ?? "vowlt";
-        var username = Environment.GetEnvironmentVariable("POSTGRES_USER")
+        // Read from IConfiguration (not Environment.GetEnvironmentVariable)
+        // This allows tests to inject configuration without setting env vars
+        var host = configuration["POSTGRES_HOST"] ?? "localhost";
+        var port = configuration["POSTGRES_PORT"] ?? "5432";
+        var database = configuration["POSTGRES_DB"] ?? "vowlt";
+        var username = configuration["POSTGRES_USER"]
             ?? throw new InvalidOperationException("POSTGRES_USER is required");
-        var password = Environment.GetEnvironmentVariable("POSTGRES_PASSWORD")
+        var password = configuration["POSTGRES_PASSWORD"]
             ?? throw new InvalidOperationException("POSTGRES_PASSWORD is required");
 
         // Production validation - don't allow defaults
@@ -62,13 +64,13 @@ public static class ServiceCollectionExtensions
 
         var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password}";
 
-        using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-        var logger = loggerFactory.CreateLogger("Database");
-        logger.DatabaseConfigured(host, database, username);
-
         services.AddDbContext<VowltDbContext>(options =>
+        {
             options.UseNpgsql(connectionString, npgsqlOptions =>
-                npgsqlOptions.UseVector()));
+            {
+                npgsqlOptions.UseVector();
+            });
+        });
 
         return services;
     }
@@ -400,7 +402,7 @@ public static class ServiceCollectionExtensions
     {
         services.AddCors(options =>
         {
-            if (environment.IsDevelopment())
+            if (environment.IsDevelopment() || environment.IsEnvironment("Test"))
             {
                 // Development: Allow all origins for easy testing
                 options.AddPolicy("AllowAll", policy =>
@@ -975,5 +977,13 @@ public static class ServiceCollectionExtensions
 
         logger.LogInformation("Gemini provider configured successfully");
     }
+    public static IServiceCollection AddVowltOAuth(
+      this IServiceCollection services)
+    {
+        services.AddScoped<Vowlt.Api.Features.OAuth.Services.OAuthService>();
+        services.AddScoped<Vowlt.Api.Features.OAuth.Services.PKCEValidator>();
+        return services;
+    }
+
 }
 

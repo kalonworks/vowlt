@@ -22,11 +22,15 @@ public static class WebApplicationExtensions
 
     public static WebApplication UseVowltAuthentication(this WebApplication app)
     {
-        app.UseRateLimiter();
+        if (!app.Environment.IsEnvironment("Test"))
+        {
+            app.UseRateLimiter();
+        }
         app.UseAuthentication();
         app.UseAuthorization();
         return app;
     }
+
 
     /// <summary>
     /// Applies database migrations and seeds initial data on application startup.

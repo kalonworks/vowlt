@@ -33,49 +33,43 @@ public class OAuthController(
     /// 7. Extension extracts code from redirect URL
     /// </remarks>
     [HttpGet("authorize")]
-    [Authorize] // User must be authenticated
+    [Authorize]
     public async Task<IActionResult> Authorize([FromQuery] AuthorizeRequest request)
     {
-        // Validate code challenge method (OAuth 2.1 requires S256)
+        logger.LogWarning("=== AUTHORIZE START === User: {User}, ClientId: {ClientId}",
+            User?.Identity?.Name ?? "NULL",
+            request.ClientId ?? "NULL");
+
+        // Validate code challenge method
+        logger.LogWarning("Step 1: Validating code challenge method");
         if (request.CodeChallengeMethod != "S256")
         {
-            logger.LogWarning("Invalid code_challenge_method: {Method}. Only S256 is allowed.",
-                request.CodeChallengeMethod);
-            return BadRequest(new
-            {
-                error = "invalid_request",
-                error_description = "code_challenge_method must be S256"
-            });
+            logger.LogWarning("Invalid code_challenge_method: {Method}", request.CodeChallengeMethod);
+            return BadRequest(new { error = "invalid_request", error_description = "code_challenge_method must be S256" });
         }
 
         // Validate client and redirect URI
-        var isValid = await oauthService.ValidateClientAndRedirectUriAsync(
-            request.ClientId, request.RedirectUri);
-
+        logger.LogWarning("Step 2: Validating client");
+        var isValid = await oauthService.ValidateClientAndRedirectUriAsync(request.ClientId, request.RedirectUri);
         if (!isValid)
         {
-            logger.LogWarning("Invalid client_id or redirect_uri. ClientId: {ClientId}, RedirectUri: {RedirectUri}",
-                request.ClientId, request.RedirectUri);
-            return BadRequest(new
-            {
-                error = "invalid_client",
-                error_description = "Invalid client_id or redirect_uri"
-            });
+            logger.LogWarning("Invalid client_id or redirect_uri");
+            return BadRequest(new { error = "invalid_client", error_description = "Invalid client_id or redirect_uri" });
         }
 
         // Get current authenticated user
+        logger.LogWarning("Step 3: Getting user. User.Identity.IsAuthenticated={IsAuth}, Name={Name}",
+            User?.Identity?.IsAuthenticated, User?.Identity?.Name);
         var user = await userManager.GetUserAsync(User);
+        logger.LogWarning("Step 4: User result: {UserFound}", user != null);
+
         if (user == null)
         {
             logger.LogWarning("User not found despite [Authorize] attribute");
-            return Unauthorized(new
-            {
-                error = "unauthorized",
-                error_description = "User not authenticated"
-            });
+            return Unauthorized(new { error = "unauthorized", error_description = "User not authenticated" });
         }
 
-        // Create authorization code
+        logger.LogWarning("Step 5: Creating auth code for user {UserId}", user.Id);
         var authCode = await oauthService.CreateAuthorizationCodeAsync(
             userId: user.Id,
             userEmail: user.Email!,
@@ -85,19 +79,17 @@ public class OAuthController(
             codeChallengeMethod: request.CodeChallengeMethod,
             state: request.State);
 
-        logger.LogInformation("Created authorization code for user {UserId}, client {ClientId}",
-            user.Id, request.ClientId);
-
-        // Build redirect URL with code and state
+        logger.LogWarning("Step 6: Redirecting");
         var redirectUrl = $"{request.RedirectUri}?code={authCode.Code}";
         if (!string.IsNullOrEmpty(request.State))
         {
             redirectUrl += $"&state={request.State}";
         }
 
-        // Redirect back to client (extension)
         return Redirect(redirectUrl);
     }
+
+
 
     /// <summary>
     /// OAuth token endpoint (step 2 of the flow).

@@ -22,6 +22,7 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddVowltDatabase(builder.Configuration, builder.Environment);
 builder.Services.AddVowltIdentity();
+builder.Services.AddVowltOAuth();
 builder.Services.AddVowltJwtAuthentication(builder.Configuration, builder.Environment);
 builder.Services.AddVowltRateLimiting(builder.Configuration, builder.Environment);
 builder.Services.AddVowltValidation();
@@ -37,7 +38,10 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
-await app.SeedDatabaseAsync();
+if (!app.Environment.IsEnvironment("Test"))
+{
+    await app.SeedDatabaseAsync();
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -49,3 +53,6 @@ app.UseVowltAuthentication();
 app.MapControllers();
 
 app.Run();
+
+public partial class Program { }
+

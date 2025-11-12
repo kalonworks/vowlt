@@ -9,6 +9,12 @@ public interface IRefreshTokenService
         string? ipAddress = null,
         CancellationToken cancellationToken = default);
 
+    Task<RefreshToken> GenerateRefreshTokenAsync(
+        Guid userId,
+        int lifetimeDays,
+        string? ipAddress = null,
+        CancellationToken cancellationToken = default);
+
     Task<RefreshToken?> ValidateRefreshTokenAsync(
         string token,
         CancellationToken cancellationToken = default);
