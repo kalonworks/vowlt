@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Vowlt.Api.Features.Auth.Models;
 using Vowlt.Api.Features.Bookmarks.Models;
+using Vowlt.Api.Features.OAuth.Models;
 
 namespace Vowlt.Api.Data;
 
@@ -10,6 +11,9 @@ public class VowltDbContext(DbContextOptions<VowltDbContext> options) : Identity
 {
     public DbSet<Bookmark> Bookmarks => Set<Bookmark>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<AuthorizationCode> AuthorizationCodes => Set<AuthorizationCode>();
+    public DbSet<OAuthClient> OAuthClients => Set<OAuthClient>();
+
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -66,6 +70,42 @@ public class VowltDbContext(DbContextOptions<VowltDbContext> options) : Identity
             entity.HasIndex(e => e.GeneratedTags)
                 .HasMethod("gin");
         });
+
+        // Configure OAuth authorization codes
+        modelBuilder.Entity<AuthorizationCode>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Code).IsUnique();
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.ExpiresAt);
+
+            entity.Property(e => e.Code).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.CodeChallenge).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.CodeChallengeMethod).IsRequired().HasMaxLength(10);
+            entity.Property(e => e.UserEmail).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.ClientId).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.RedirectUri).IsRequired().HasMaxLength(2000);
+            entity.Property(e => e.State).HasMaxLength(500);
+        });
+
+
+        // Configure OAuth clients
+        modelBuilder.Entity<OAuthClient>(entity =>
+        {
+            entity.HasKey(e => e.ClientId);
+
+            entity.Property(e => e.Name)
+                .IsRequired()
+                .HasMaxLength(100);
+
+            entity.Property(e => e.Description)
+                .HasMaxLength(500);
+
+            entity.Property(e => e.AllowedRedirectUris)
+                .IsRequired()
+                .HasMaxLength(2000);
+        });
+
 
         modelBuilder.Entity<ApplicationUser>(entity =>
         {
