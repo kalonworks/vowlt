@@ -1,6 +1,6 @@
+using Vowlt.Api.Features.OAuth.Models;
 
 using Microsoft.EntityFrameworkCore;
-using Vowlt.Api.Features.OAuth.Models;
 
 namespace Vowlt.Api.Data.Seeders;
 
@@ -48,6 +48,20 @@ public static class OAuthClientSeeder
 
             context.OAuthClients.Add(devClient);
             logger.LogInformation("Added development OAuth client");
+
+            // SPA client (dev/test only)
+            var spaClient = OAuthClient.Create(
+                clientId: "vowlt-spa",
+                name: "Vowlt Web Application (Development)",
+                description: "React SPA for local development",
+                allowedRedirectUris: "http://localhost:3000/auth/callback,http://127.0.0.1:3000/auth/callback",
+                accessTokenLifetimeMinutes: 15,
+                refreshTokenLifetimeDays: 7,
+                now: now
+            );
+
+            context.OAuthClients.Add(spaClient);
+            logger.LogInformation("Added SPA OAuth client");
         }
 
         // Chrome extension client (all environments)
@@ -63,9 +77,27 @@ public static class OAuthClientSeeder
 
         context.OAuthClients.Add(chromeExtension);
 
+        // Production SPA client
+        if (environment.IsProduction())
+        {
+            var prodSpaClient = OAuthClient.Create(
+                clientId: "vowlt-spa-production",
+                name: "Vowlt Web Application",
+                description: "React SPA for production",
+                allowedRedirectUris: "https://vowlt.com/auth/callback,https://app.vowlt.com/auth/callback",
+                accessTokenLifetimeMinutes: 15,
+                refreshTokenLifetimeDays: 30,
+                now: now
+            );
+
+            context.OAuthClients.Add(prodSpaClient);
+            logger.LogInformation("Added production SPA OAuth client");
+        }
+
         await context.SaveChangesAsync();
 
-        var seededCount = environment.IsDevelopment() || environment.IsEnvironment("Test") ? 2 : 1;
+        var seededCount = environment.IsDevelopment() || environment.IsEnvironment("Test") ? 3 :
+                         environment.IsProduction() ? 2 : 1;
         logger.LogInformation("✓ OAuth clients seeded successfully: {Count} clients added", seededCount);
     }
 }

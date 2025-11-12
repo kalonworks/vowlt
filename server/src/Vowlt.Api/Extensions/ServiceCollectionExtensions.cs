@@ -405,52 +405,56 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddVowltCors(
-         this IServiceCollection services,
-         IWebHostEnvironment environment)
-    {
-        services.AddCors(options =>
-        {
-            if (environment.IsDevelopment() || environment.IsEnvironment("Test"))
-            {
-                // Development: Allow all origins for easy testing
-                options.AddPolicy("AllowAll", policy =>
-                {
-                    policy.AllowAnyOrigin()
-                        .AllowAnyMethod()
-                        .AllowAnyHeader();
-                });
-            }
-            else
-            {
-                // Production: Restrict to configured origins
-                var allowedOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
-                    ?? throw new InvalidOperationException(
-                        "CORS_ALLOWED_ORIGINS environment variable is required in production. " +
-                        "Set comma-separated list of allowed origins (e.g., 'https://app.vowlt.com,https://www.vowlt.com')");
+   public static IServiceCollection AddVowltCors(
+       this IServiceCollection services,
+       IWebHostEnvironment environment)
+  {
+      services.AddCors(options =>
+      {
+          if (environment.IsDevelopment() || environment.IsEnvironment("Test"))
+          {
+              // Development: Allow local origins with credentials (for OAuth cookies)
+              options.AddPolicy("AllowAll", policy =>
+              {
+                  policy.WithOrigins(
+                          "http://localhost:3000",
+                          "http://127.0.0.1:3000")
+                      .AllowAnyMethod()
+                      .AllowAnyHeader()
+                      .AllowCredentials(); // Required for OAuth cookies
+              });
+          }
+          else
+          {
+              // Production: Restrict to configured origins
+              var allowedOrigins = Environment.GetEnvironmentVariable("CORS_ALLOWED_ORIGINS")
+                  ?? throw new InvalidOperationException(
+                      "CORS_ALLOWED_ORIGINS environment variable is required in production. " +
+                      "Set comma-separated list of allowed origins (e.g., 'https://app.vowlt.com,https://www.vowlt.com')");
 
 
-                var origins = allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+              var origins = allowedOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-                options.AddPolicy("AllowAll", policy =>
-                {
-                    policy.WithOrigins(origins)
-                        .AllowAnyMethod()
-                        .AllowAnyHeader()
-                        .AllowCredentials(); // Required for cookies/auth headers
-                });
+              options.AddPolicy("AllowAll", policy =>
+              {
+                  policy.WithOrigins(origins)
+                      .AllowAnyMethod()
+                      .AllowAnyHeader()
+                      .AllowCredentials(); // Required for cookies/auth headers
+              });
 
-                using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-                var logger = loggerFactory.CreateLogger("CORS");
-                logger.LogInformation(
-                    "CORS configured for production with {Count} allowed origins: {Origins}",
-                    origins.Length,
-                    string.Join(", ", origins));
-            }
-        });
+              using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
+              var logger = loggerFactory.CreateLogger("CORS");
+              logger.LogInformation(
+                  "CORS configured for production with {Count} allowed origins: {Origins}",
+                  origins.Length,
+                  string.Join(", ", origins));
+          }
+      });
 
-        return services;
-    }
+      return services;
+  }
+
 
 
     public static IServiceCollection AddVowltSwagger(
