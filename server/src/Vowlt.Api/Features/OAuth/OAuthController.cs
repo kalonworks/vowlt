@@ -78,6 +78,7 @@ public class OAuthController(
         // Create authorization code
         var authCode = await oauthService.CreateAuthorizationCodeAsync(
             userId: user.Id,
+            userEmail: user.Email!,
             clientId: request.ClientId,
             redirectUri: request.RedirectUri,
             codeChallenge: request.CodeChallenge,

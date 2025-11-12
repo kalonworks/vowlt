@@ -37,6 +37,8 @@ builder.Services.AddOpenApi();
 
 var app = builder.Build();
 
+await app.SeedDatabaseAsync();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseVowltSwagger();

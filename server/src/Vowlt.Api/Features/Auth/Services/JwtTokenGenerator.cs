@@ -40,4 +40,33 @@ public class JwtTokenGenerator(
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+    //overload for OAuth clients with custom token lifetimes
+    public string GenerateAccessToken(Guid userId, string email, int lifetimeMinutes)
+    {
+        var signingKey = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(_jwtOptions.Secret));
+
+        var signingCredentials = new SigningCredentials(
+            signingKey,
+            SecurityAlgorithms.HmacSha256);
+
+        var claims = new[]
+        {
+          new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+          new Claim(JwtRegisteredClaimNames.Email, email),
+          new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+      };
+
+        var token = new JwtSecurityToken(
+            issuer: _jwtOptions.Issuer,
+            audience: _jwtOptions.Audience,
+            claims: claims,
+            expires: timeProvider.GetUtcNow()
+                .AddMinutes(lifetimeMinutes)  // ← Custom lifetime instead of config value
+                .UtcDateTime,
+            signingCredentials: signingCredentials);
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
 }

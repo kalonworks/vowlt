@@ -125,11 +125,13 @@ public class OAuthService(
             userEmail,
             client.AccessTokenLifetimeMinutes);
 
-        // Generate refresh token (fix method name based on what exists in RefreshTokenService)
+        // Generate refresh token
         var refreshToken = await refreshTokenService.GenerateRefreshTokenAsync(
             authCode.UserId,
             client.RefreshTokenLifetimeDays,
+            ipAddress: null,
             cancellationToken);
+
 
         var expiresAt = now.AddMinutes(client.AccessTokenLifetimeMinutes);
 

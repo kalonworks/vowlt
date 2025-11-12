@@ -29,6 +29,29 @@ public class RefreshTokenService(
         return refreshToken;
     }
 
+    public async Task<RefreshToken> GenerateRefreshTokenAsync(
+     Guid userId,
+     int lifetimeDays,
+     string? ipAddress = null,
+     CancellationToken cancellationToken = default)
+    {
+        var refreshToken = new RefreshToken
+        {
+            Id = Guid.NewGuid(),
+            UserId = userId,
+            Token = GenerateSecureToken(),
+            ExpiresAt = timeProvider.GetUtcNow().AddDays(lifetimeDays).UtcDateTime,  // ← Custom lifetime
+            CreatedAt = timeProvider.GetUtcNow().UtcDateTime,
+            CreatedByIp = ipAddress
+        };
+
+        context.RefreshTokens.Add(refreshToken);
+        await context.SaveChangesAsync(cancellationToken);
+
+        return refreshToken;
+    }
+
+
     public async Task<RefreshToken?> ValidateRefreshTokenAsync(
         string token,
         CancellationToken cancellationToken = default)
