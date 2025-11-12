@@ -1,8 +1,8 @@
 import { startOAuthFlow } from "../services/oauth";
 
 export const LoginPage = () => {
-  const handleLogin = () => {
-    startOAuthFlow();
+  const handleLogin = (): void => {
+    void startOAuthFlow();
   };
 
   return (

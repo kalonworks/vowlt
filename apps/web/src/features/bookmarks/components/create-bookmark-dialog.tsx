@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
+import { isAxiosError, type AxiosError } from "axios";
+import type { ApiError } from "@/lib/api-client";
 import {
   Dialog,
   DialogContent,
@@ -25,8 +27,10 @@ export function CreateBookmarkDialog() {
         setOpen(false);
       },
       onError: (error) => {
-        const message =
-          error.response?.data?.detail || "Failed to create bookmark";
+        const axiosError = error as AxiosError<ApiError>;
+        const message = isAxiosError(axiosError)
+          ? (axiosError.response?.data?.detail ?? "Failed to create bookmark")
+          : "Failed to create bookmark";
         toast.error(message);
       },
     });

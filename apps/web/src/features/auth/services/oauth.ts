@@ -5,6 +5,13 @@ import {
 } from "../utils/pkce";
 import type { AuthResponse } from "../types";
 
+interface TokenResponseDto {
+  access_token: string;
+  token_type: string;
+  expires_in: number;
+  refresh_token: string;
+}
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:5000";
 const CLIENT_ID = "vowlt-spa";
@@ -92,7 +99,7 @@ export async function handleOAuthCallback(
     throw new Error(`Token exchange failed: ${error}`);
   }
 
-  const data = await response.json();
+  const data = (await response.json()) as TokenResponseDto;
 
   // Transform to AuthResponse format
   return {

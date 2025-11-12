@@ -9,13 +9,25 @@ export interface ApiError {
   errors?: Record<string, string[]>;
 }
 
+interface AuthStorage {
+  state: {
+    accessToken: string | null;
+    refreshToken: string | null;
+    user: unknown;
+  };
+}
+
 // Helper to get auth state from Zustand persist storage
-function getAuthFromStorage() {
+function getAuthFromStorage(): {
+  accessToken: string;
+  refreshToken: string;
+} | null {
   const authStorage = localStorage.getItem("auth-storage");
   if (!authStorage) return null;
 
   try {
-    const { state } = JSON.parse(authStorage);
+    const { state } = JSON.parse(authStorage) as AuthStorage;
+    if (!state.accessToken || !state.refreshToken) return null;
     return {
       accessToken: state.accessToken,
       refreshToken: state.refreshToken,
@@ -26,12 +38,15 @@ function getAuthFromStorage() {
 }
 
 // Helper to update tokens in Zustand persist storage
-function updateTokensInStorage(accessToken: string, refreshToken: string) {
+function updateTokensInStorage(
+  accessToken: string,
+  refreshToken: string
+): void {
   const authStorage = localStorage.getItem("auth-storage");
   if (!authStorage) return;
 
   try {
-    const parsed = JSON.parse(authStorage);
+    const parsed = JSON.parse(authStorage) as AuthStorage;
     parsed.state.accessToken = accessToken;
     parsed.state.refreshToken = refreshToken;
     localStorage.setItem("auth-storage", JSON.stringify(parsed));
@@ -57,7 +72,7 @@ apiClient.interceptors.request.use(
     }
     return config;
   },
-  (error) => Promise.reject(error)
+  (error: Error) => Promise.reject(error)
 );
 
 // Response interceptor - handle token refresh
@@ -78,7 +93,7 @@ apiClient.interceptors.response.use(
           // No refresh token, clear and redirect
           localStorage.removeItem("auth-storage");
           window.location.href = "/login";
-          return Promise.reject(error);
+          return Promise.reject(new Error("No refresh token available"));
         }
 
         // Call refresh endpoint
@@ -105,7 +120,11 @@ apiClient.interceptors.response.use(
         // Refresh failed, logout
         localStorage.removeItem("auth-storage");
         window.location.href = "/login";
-        return Promise.reject(refreshError);
+        return Promise.reject(
+          refreshError instanceof Error
+            ? refreshError
+            : new Error("Token refresh failed")
+        );
       }
     }
 

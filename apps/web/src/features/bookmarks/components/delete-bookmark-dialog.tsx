@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { isAxiosError, type AxiosError } from "axios";
+import type { ApiError } from "@/lib/api-client";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,8 +36,10 @@ export function DeleteBookmarkDialog({
         setOpen(false);
       },
       onError: (error) => {
-        const message =
-          error.response?.data?.detail || "Failed to delete bookmark";
+        const axiosError = error as AxiosError<ApiError>;
+        const message = isAxiosError(axiosError)
+          ? (axiosError.response?.data?.detail ?? "Failed to delete bookmark")
+          : "Failed to delete bookmark";
         toast.error(message);
       },
     });

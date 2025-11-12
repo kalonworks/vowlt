@@ -3,6 +3,13 @@ import { useNavigate } from "@tanstack/react-router";
 import { handleOAuthCallback } from "../services/oauth";
 import { useAuthStore } from "../store/auth-store";
 
+interface JwtPayload {
+  sub?: string;
+  userId?: string;
+  email: string;
+  name?: string;
+}
+
 /**
  * OAuth callback page - handles the redirect from authorization server
  * Extracts code, exchanges for tokens, stores auth, and redirects to app
@@ -18,7 +25,7 @@ export function OAuthCallbackPage() {
     if (hasProcessed.current) return;
     hasProcessed.current = true;
 
-    async function handleCallback() {
+    async function handleCallback(): Promise<void> {
       try {
         // Get full URL with query params
         const callbackUrl = window.location.href;
@@ -29,28 +36,28 @@ export function OAuthCallbackPage() {
         // Decode JWT to get user info
         const payload = JSON.parse(
           atob(authResponse.accessToken.split(".")[1])
-        );
+        ) as JwtPayload;
 
         // Store auth in Zustand
         setAuth(
           {
-            id: payload.sub || payload.userId,
+            id: payload.sub ?? payload.userId ?? "",
             email: payload.email,
-            displayName: payload.name || payload.email,
+            displayName: payload.name ?? payload.email,
           },
           authResponse.accessToken,
           authResponse.refreshToken
         );
 
         // Redirect to bookmarks
-        navigate({ to: "/bookmarks" });
+        await navigate({ to: "/bookmarks" });
       } catch (err) {
         console.error("OAuth callback error:", err);
         setError(err instanceof Error ? err.message : "Authentication failed");
       }
     }
 
-    handleCallback();
+    void handleCallback();
   }, [navigate, setAuth]);
 
   if (error) {
@@ -64,7 +71,7 @@ export function OAuthCallbackPage() {
             <p className="mt-2 text-sm text-red-700">{error}</p>
           </div>
           <button
-            onClick={() => navigate({ to: "/login" })}
+            onClick={() => void navigate({ to: "/login" })}
             className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
           >
             Back to Login

@@ -1,6 +1,5 @@
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { X } from "lucide-react";
 import {
   bookmarkSchema,
   type BookmarkFormData,
@@ -28,8 +27,6 @@ export function BookmarkForm({
     control,
     handleSubmit,
     formState: { errors },
-    watch,
-    setValue,
   } = useForm<BookmarkFormData>({
     resolver: zodResolver(bookmarkSchema),
     defaultValues: {
@@ -40,8 +37,13 @@ export function BookmarkForm({
     },
   });
 
+  const handleFormSubmit = (event: React.FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    void handleSubmit(onSubmit)(event);
+  };
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleFormSubmit} className="space-y-4">
       {/* URL Field */}
       <div className="space-y-2">
         <Label htmlFor="url">
