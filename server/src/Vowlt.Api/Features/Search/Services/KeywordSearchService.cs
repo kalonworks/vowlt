@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Vowlt.Api.Data;
 using Vowlt.Api.Features.Search.Models;
+using Vowlt.Api.Features.Search.Options;
 
 namespace Vowlt.Api.Features.Search.Services;
 
@@ -9,6 +11,7 @@ namespace Vowlt.Api.Features.Search.Services;
 /// </summary>
 public class KeywordSearchService(
     IDbContextFactory<VowltDbContext> contextFactory,
+    IOptions<SearchOptions> options,
     ILogger<KeywordSearchService> logger) : IKeywordSearchService
 {
     public async Task<List<KeywordSearchResult>> SearchAsync(
@@ -32,13 +35,14 @@ public class KeywordSearchService(
 
             // Build SQL query with ParadeDB search
             var sql = @"
-                  SELECT 
+                  SELECT
                       b.""Id"" as BookmarkId,
                       paradedb.score(b.""Id"") as Bm25Score,
                       ROW_NUMBER() OVER (ORDER BY paradedb.score(b.""Id"") DESC) as Rank
                   FROM ""Bookmarks"" b
                   WHERE b.""Id"" @@@ paradedb.parse(@query, lenient => true)
-                      AND b.""UserId"" = @userId";
+                      AND b.""UserId"" = @userId
+                      AND paradedb.score(b.""Id"") >= @minScore";
 
             // Add optional filters
             if (fromDate.HasValue)
@@ -60,6 +64,7 @@ public class KeywordSearchService(
                     sql,
                     new Npgsql.NpgsqlParameter("@query", parsedQuery),
                     new Npgsql.NpgsqlParameter("@userId", userId),
+                    new Npgsql.NpgsqlParameter("@minScore", options.Value.MinimumBm25Score),
                     new Npgsql.NpgsqlParameter("@limit", limit),
                     new Npgsql.NpgsqlParameter("@fromDate", (object?)fromDate ?? DBNull.Value),
                     new Npgsql.NpgsqlParameter("@toDate", (object?)toDate ?? DBNull.Value),
@@ -69,6 +74,14 @@ public class KeywordSearchService(
             logger.LogInformation(
                 "Keyword search completed: Found {Count} results",
                 results.Count);
+
+            // Log individual BM25 scores for debugging
+            if (results.Count > 0)
+            {
+                logger.LogInformation(
+                    "BM25 scores: {@Scores}",
+                    results.Select(r => new { r.BookmarkId, r.Bm25Score, r.Rank }));
+            }
 
             return results.Select(r => new KeywordSearchResult
             {

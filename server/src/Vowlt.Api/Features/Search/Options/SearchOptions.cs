@@ -34,6 +34,19 @@ public class SearchOptions
     /// Maximum results to fetch from vector search
     /// </summary>
     public int MaxVectorResults { get; init; } = 50;
+
+    /// <summary>
+    /// Minimum BM25 score threshold for keyword search results
+    /// Results below this score are filtered out (default: 1.0)
+    /// </summary>
+    public double MinimumBm25Score { get; init; } = 1.0;
+
+    /// <summary>
+    /// Minimum RRF score threshold after fusion
+    /// Results below this score are filtered out (default: 0.015)
+    /// Rank 5 in one search = 0.0154, Rank 10 = 0.0143
+    /// </summary>
+    public double MinimumRrfScore { get; init; } = 0.015;
 }
 
 public enum SearchMode

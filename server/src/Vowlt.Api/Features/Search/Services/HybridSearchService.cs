@@ -216,8 +216,30 @@ public class HybridSearchService(
             keywordResults,
             _options.RrfK);
 
-        // Take top N after fusion
-        var topResults = fusedResults.Take(request.Limit).ToList();
+        // Log RRF scores before filtering for debugging
+        logger.LogInformation(
+            "RRF scores before filter (showing top 10): {@Scores}",
+            fusedResults.Take(10).Select(r => new
+            {
+                r.BookmarkId,
+                r.RrfScore,
+                r.VectorRank,
+                r.KeywordRank,
+                r.VectorScore,
+                r.KeywordScore
+            }));
+
+        // Filter by minimum RRF score and take top N
+        var topResults = fusedResults
+            .Where(r => r.RrfScore >= _options.MinimumRrfScore)
+            .Take(request.Limit)
+            .ToList();
+
+        logger.LogInformation(
+            "After RRF filter (>= {MinScore}): {Count} results (filtered out {Filtered})",
+            _options.MinimumRrfScore,
+            topResults.Count,
+            fusedResults.Count - topResults.Count);
 
         // Fetch bookmarks
         var bookmarkIds = topResults.Select(r => r.BookmarkId).ToList();
