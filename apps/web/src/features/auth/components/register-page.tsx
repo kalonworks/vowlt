@@ -1,16 +1,28 @@
+import { useState } from "react";
 import { useRegister } from "../hooks";
 
 export const RegisterPage = () => {
   const register = useRegister();
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setError(null);
+
     const formData = new FormData(e.currentTarget);
+    const password = formData.get("password") as string;
+    const confirmPassword = formData.get("confirmPassword") as string;
+
+    // Validate passwords match on frontend
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
 
     register.mutate({
       email: formData.get("email") as string,
-      password: formData.get("password") as string,
-      confirmPassword: formData.get("confirmPassword") as string,
+      password,
+      displayName: formData.get("displayName") as string,
     });
   };
 
@@ -35,7 +47,24 @@ export const RegisterPage = () => {
                 name="email"
                 type="email"
                 required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none 
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none
+  focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="displayName"
+                className="block text-sm font-medium"
+              >
+                Display Name
+              </label>
+              <input
+                id="displayName"
+                name="displayName"
+                type="text"
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none
   focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -50,7 +79,7 @@ export const RegisterPage = () => {
                 type="password"
                 required
                 minLength={8}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none 
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none
   focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
@@ -74,10 +103,9 @@ export const RegisterPage = () => {
             </div>
           </div>
 
-          {register.error && (
+          {(error || register.error) && (
             <div className="text-red-600 text-sm">
-              {register.error.message ||
-                "Registration failed. Please try again."}
+              {error || register.error?.message || "Registration failed. Please try again."}
             </div>
           )}
 

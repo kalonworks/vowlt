@@ -21,6 +21,7 @@ public class VowltDbContext(DbContextOptions<VowltDbContext> options) : Identity
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.HasPostgresExtension("vector");
+        modelBuilder.HasPostgresExtension("pg_search");
 
         // Configure Bookmark
         modelBuilder.Entity<Bookmark>(entity =>

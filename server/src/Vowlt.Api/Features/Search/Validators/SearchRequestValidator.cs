@@ -9,19 +9,25 @@ public class SearchRequestValidator : AbstractValidator<SearchRequest>
     {
         RuleFor(x => x.Query)
             .NotEmpty()
+            .WithMessage("Search query is required.")
             .MinimumLength(2)
-            .MaximumLength(500);
+            .WithMessage("Search query must be at least 2 characters.")
+            .MaximumLength(500)
+            .WithMessage("Search query must not exceed 500 characters.");
 
         RuleFor(x => x.Limit)
             .GreaterThan(0)
-            .LessThanOrEqualTo(100);
+            .WithMessage("Limit must be greater than 0.")
+            .LessThanOrEqualTo(100)
+            .WithMessage("Limit must not exceed 100.");
 
         RuleFor(x => x.MinimumScore)
-            .InclusiveBetween(0.0, 1.0);
+            .InclusiveBetween(0.0, 1.0)
+            .WithMessage("Minimum score must be between 0 and 1.");
 
-        RuleFor(x => x.FromDate)
-            .LessThan(x => x.ToDate)
-            .When(x => x.FromDate.HasValue && x.ToDate.HasValue)
-            .WithMessage("FromDate must be before ToDate");
+        RuleFor(x => x.Mode)
+            .IsInEnum()
+            .When(x => x.Mode.HasValue)
+            .WithMessage("Invalid search mode. Must be Vector, Keyword, or Hybrid.");
     }
 }

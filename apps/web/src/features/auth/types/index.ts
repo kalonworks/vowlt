@@ -1,6 +1,9 @@
 export interface User {
   id: string;
   email: string;
+  displayName: string;
+  createdAt: string;
+  lastLoginAt?: string;
 }
 
 export interface LoginRequest {
@@ -11,7 +14,7 @@ export interface LoginRequest {
 export interface RegisterRequest {
   email: string;
   password: string;
-  confirmPassword: string;
+  displayName: string;
 }
 
 export interface RefreshTokenRequest {

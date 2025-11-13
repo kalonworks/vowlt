@@ -32,7 +32,7 @@ builder.Services.AddVowltEmbedding(builder.Configuration, builder.Environment);
 builder.Services.AddVowltBookmarks();
 builder.Services.AddVowltMetadataExtraction(builder.Configuration, builder.Environment);
 builder.Services.AddVowltLlm(builder.Configuration, builder.Environment);
-builder.Services.AddVowltSearch();
+builder.Services.AddVowltSearch(builder.Configuration);
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
