@@ -11,4 +11,5 @@ public record FusedSearchResult
     public int? KeywordRank { get; init; }
     public double? VectorScore { get; init; }
     public double? KeywordScore { get; init; }
+    public double? CrossEncoderScore { get; init; }
 }

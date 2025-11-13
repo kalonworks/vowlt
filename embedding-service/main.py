@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from sentence_transformers import SentenceTransformer
+from sentence_transformers import CrossEncoder
 from typing import List
 import logging
 import time
@@ -23,6 +24,9 @@ app = FastAPI(
 logger.info("Loading sentence-transformers model...")
 model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 logger.info("Model loaded successfully!")
+logger.info("Loading cross-encoder model...")
+cross_encoder = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+logger.info("Model loaded successfully!")
 
 # Request/Response models
 class EmbedRequest(BaseModel):
@@ -33,6 +37,15 @@ class EmbedResponse(BaseModel):
     model: str
     dimensions: int
     processing_time_ms: float
+class RerankRequest(BaseModel):
+      query: str
+      texts: List[str]
+class RerankItem(BaseModel):
+      index: int
+      score: float
+class RerankResponse(BaseModel):
+      scores: List[RerankItem]
+
 
 @app.get("/")
 async def root():
@@ -93,3 +106,31 @@ async def embed(request: EmbedRequest):
     except Exception as e:
         logger.error(f"Error embedding texts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Embedding failed: {str(e)}")
+    
+@app.post("/rerank", response_model=RerankResponse)
+async def rerank(request: RerankRequest):
+    """
+    Rerank texts using cross-encoder for more accurate relevance scoring.
+    Returns scores in range [0, 1] where higher = more relevant.
+    """
+    try:
+        # Create pairs of (query, text) for the cross-encoder
+        pairs = [[request.query, text] for text in request.texts]
+
+        # Get scores from cross-encoder
+        scores = cross_encoder.predict(pairs)
+
+        # Normalize scores to [0, 1] range using sigmoid
+        import numpy as np
+        normalized_scores = 1 / (1 + np.exp(-scores))
+
+        # Create response with index and score
+        results = [
+            RerankItem(index=i, score=float(score))
+            for i, score in enumerate(normalized_scores)
+        ]
+
+        return RerankResponse(scores=results)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Reranking failed: {str(e)}")

@@ -47,6 +47,24 @@ public class SearchOptions
     /// Rank 5 in one search = 0.0154, Rank 10 = 0.0143
     /// </summary>
     public double MinimumRrfScore { get; init; } = 0.015;
+    /// <summary>
+    /// Enable cross-encoder reranking for improved result quality
+    /// </summary>
+    public bool EnableCrossEncoderReranking { get; init; } = true;
+
+    /// <summary>
+    /// Number of candidates to retrieve before cross-encoder reranking
+    /// Should be larger than typical result limit to allow reranking to work
+    /// </summary>
+    public int RerankCandidateLimit { get; init; } = 100;
+
+    /// <summary>
+    /// Minimum cross-encoder score threshold (0-1 range)
+    /// Results below this score are filtered out after reranking
+    /// 0.6 is a good balance between precision and recall
+    /// </summary>
+    public double MinimumCrossEncoderScore { get; init; } = 0.6;
+
 }
 
 public enum SearchMode

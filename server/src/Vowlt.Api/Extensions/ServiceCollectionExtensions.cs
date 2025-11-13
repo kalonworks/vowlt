@@ -721,6 +721,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IVectorSearchService, VectorSearchService>();
         services.AddScoped<IKeywordSearchService, KeywordSearchService>();
         services.AddScoped<IRankFusionService, RankFusionService>();
+        services.AddScoped<ICrossEncoderService, CrossEncoderService>();
         services.AddScoped<ISearchService, HybridSearchService>();
 
         return services;

@@ -16,8 +16,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Download model during build (caches in image)
-RUN python -c "from sentence_transformers import SentenceTransformer;SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')"
+# Download both models during build (caches in image)
+RUN python -c "from sentence_transformers import SentenceTransformer, CrossEncoder; \
+    SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2'); \
+    CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')"
 
 # Final stage - smaller image
 FROM python:3.11-slim
@@ -32,7 +34,7 @@ WORKDIR /app
 # Copy installed packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
-COPY --from=builder /root/.cache /home/vowlt/.cache
+COPY --from=builder --chown=vowlt:vowlt /root/.cache /home/vowlt/.cache
 
 # Copy application code
 COPY --chown=vowlt:vowlt main.py .

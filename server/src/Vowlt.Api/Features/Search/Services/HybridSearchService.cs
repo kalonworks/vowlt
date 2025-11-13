@@ -16,6 +16,7 @@ public class HybridSearchService(
     IVectorSearchService vectorSearchService,
     IKeywordSearchService keywordSearchService,
     IRankFusionService rankFusionService,
+    ICrossEncoderService crossEncoderService,
     VowltDbContext context,
     IOptions<SearchOptions> options,
     ILogger<HybridSearchService> logger) : ISearchService
@@ -181,7 +182,7 @@ public class HybridSearchService(
         SearchRequest request,
         CancellationToken cancellationToken)
     {
-        // Execute both searches in parallel
+        // Stage 1: Execute both searches in parallel
         var vectorTask = vectorSearchService.SearchAsync(
             userId,
             request.Query,
@@ -229,17 +230,72 @@ public class HybridSearchService(
                 r.KeywordScore
             }));
 
-        // Filter by minimum RRF score and take top N
-        var topResults = fusedResults
-            .Where(r => r.RrfScore >= _options.MinimumRrfScore)
-            .Take(request.Limit)
-            .ToList();
+        // Stage 2: Cross-encoder reranking (if enabled)
+        List<Models.FusedSearchResult> rerankedResults;
 
-        logger.LogInformation(
-            "After RRF filter (>= {MinScore}): {Count} results (filtered out {Filtered})",
-            _options.MinimumRrfScore,
-            topResults.Count,
-            fusedResults.Count - topResults.Count);
+        if (_options.EnableCrossEncoderReranking)
+        {
+            // Take top N candidates for reranking
+            var candidates = fusedResults
+                .Where(r => r.RrfScore >= _options.MinimumRrfScore)
+                .Take(_options.RerankCandidateLimit)
+                .ToList();
+
+            logger.LogInformation(
+                "Reranking {Count} candidates with cross-encoder",
+                candidates.Count);
+
+            // Fetch bookmarks for candidates to get text for reranking
+            var candidateIds = candidates.Select(c => c.BookmarkId).ToList();
+            var candidateBookmarks = await FetchBookmarksAsync(candidateIds, cancellationToken);
+
+            // Prepare texts for reranking (combine title + description + url)
+            var textsToRerank = candidates
+                .Select(c =>
+                {
+                    var bookmark = candidateBookmarks.GetValueOrDefault(c.BookmarkId);
+                    if (bookmark == null) return string.Empty;
+
+                    return $"{bookmark.Title} {bookmark.Description} {bookmark.Url}"
+                        .Trim();
+                })
+                .ToList();
+
+            // Call cross-encoder
+            var crossEncoderScores = await crossEncoderService.RerankAsync(
+                request.Query,
+                textsToRerank,
+                cancellationToken);
+
+            // Add cross-encoder scores to results and filter
+            rerankedResults = candidates
+                .Select((c, index) => c with { CrossEncoderScore = crossEncoderScores[index] })
+                .Where(r => r.CrossEncoderScore >= _options.MinimumCrossEncoderScore)
+                .OrderByDescending(r => r.CrossEncoderScore)  // Sort by cross-encoder score
+                .ToList();
+
+            logger.LogInformation(
+                "After cross-encoder filter (>= {MinScore}): {Count} results (filtered out {Filtered})",
+                _options.MinimumCrossEncoderScore,
+                rerankedResults.Count,
+                candidates.Count - rerankedResults.Count);
+        }
+        else
+        {
+            // No reranking - just filter by RRF
+            rerankedResults = fusedResults
+                .Where(r => r.RrfScore >= _options.MinimumRrfScore)
+                .ToList();
+
+            logger.LogInformation(
+                "After RRF filter (>= {MinScore}): {Count} results (filtered out {Filtered})",
+                _options.MinimumRrfScore,
+                rerankedResults.Count,
+                fusedResults.Count - rerankedResults.Count);
+        }
+
+        // Take top N after reranking
+        var topResults = rerankedResults.Take(request.Limit).ToList();
 
         // Fetch bookmarks
         var bookmarkIds = topResults.Select(r => r.BookmarkId).ToList();
@@ -260,7 +316,7 @@ public class HybridSearchService(
                     Description = bookmark.Description,
                     Domain = bookmark.Domain,
                     CreatedAt = bookmark.CreatedAt,
-                    SimilarityScore = r.RrfScore,
+                    SimilarityScore = r.CrossEncoderScore ?? r.RrfScore,  // Use cross-encoder if available
                     VectorScore = r.VectorScore,
                     KeywordScore = r.KeywordScore,
                     HybridScore = r.RrfScore,
@@ -307,6 +363,7 @@ public class HybridSearchService(
 
         return bookmarks.ToDictionary(b => b.Id);
     }
+
     public async Task<Result<SearchResponse>> FindSimilarAsync(
       Guid userId,
       Guid bookmarkId,
@@ -392,8 +449,6 @@ public class HybridSearchService(
             return Result<SearchResponse>.Failure("An error occurred while finding similar bookmarks. Please try again.");
         }
     }
-
-
 
     private record BookmarkData
     {
