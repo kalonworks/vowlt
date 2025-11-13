@@ -1,3 +1,4 @@
+
 using Microsoft.EntityFrameworkCore;
 using Vowlt.Api.Data;
 using Vowlt.Api.Features.Auth.Services;
@@ -23,7 +24,8 @@ public class OAuthService(
 
     public async Task<AuthorizationCode> CreateAuthorizationCodeAsync(
         Guid userId,
-        string userEmail, // NEW: Accept email parameter
+        string userEmail,
+        string userDisplayName, // NEW: Accept displayName parameter
         string clientId,
         string redirectUri,
         string codeChallenge,
@@ -36,6 +38,7 @@ public class OAuthService(
         var authCode = AuthorizationCode.Create(
             userId,
             userEmail,
+            userDisplayName, // NEW: Pass displayName
             clientId,
             redirectUri,
             codeChallenge,
@@ -68,7 +71,7 @@ public class OAuthService(
     {
         var now = timeProvider.GetUtcNow().UtcDateTime;
 
-        // Find authorization code (NO .Include - we have email denormalized)
+        // Find authorization code (NO .Include - we have email and displayName denormalized)
         var authCode = await context.AuthorizationCodes
             .FirstOrDefaultAsync(ac => ac.Code == code && ac.ClientId == clientId,
                 cancellationToken);
@@ -117,13 +120,15 @@ public class OAuthService(
             return null;
         }
 
-        // Use denormalized email directly (no lookup needed!)
+        // Use denormalized data directly (no lookup needed!)
         var userEmail = authCode.UserEmail;
+        var userDisplayName = authCode.UserDisplayName;
 
-        // Generate access token (JWT)
+        // Generate access token (JWT) with custom lifetime
         var accessToken = jwtTokenGenerator.GenerateAccessToken(
             authCode.UserId,
             userEmail,
+            userDisplayName,
             client.AccessTokenLifetimeMinutes);
 
         // Generate refresh token
@@ -172,4 +177,3 @@ public class OAuthService(
         return true;
     }
 }
-

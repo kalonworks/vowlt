@@ -13,7 +13,7 @@ public class JwtTokenGenerator(
 {
     private readonly JwtOptions _jwtOptions = jwtOptions.Value;
 
-    public string GenerateAccessToken(Guid userId, string email)
+    public string GenerateAccessToken(Guid userId, string email, string displayName)
     {
         var signingKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(_jwtOptions.Secret));
@@ -24,10 +24,11 @@ public class JwtTokenGenerator(
 
         var claims = new[]
         {
-              new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
-              new Claim(JwtRegisteredClaimNames.Email, email),
-              new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-          };
+                new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+                new Claim(JwtRegisteredClaimNames.Email, email),
+                new Claim(JwtRegisteredClaimNames.Name, displayName),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
 
         var token = new JwtSecurityToken(
             issuer: _jwtOptions.Issuer,
@@ -40,8 +41,9 @@ public class JwtTokenGenerator(
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
     //overload for OAuth clients with custom token lifetimes
-    public string GenerateAccessToken(Guid userId, string email, int lifetimeMinutes)
+    public string GenerateAccessToken(Guid userId, string email, string displayName, int lifetimeMinutes)
     {
         var signingKey = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(_jwtOptions.Secret));
@@ -52,10 +54,11 @@ public class JwtTokenGenerator(
 
         var claims = new[]
         {
-          new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
-          new Claim(JwtRegisteredClaimNames.Email, email),
-          new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
-      };
+            new Claim(JwtRegisteredClaimNames.Sub, userId.ToString()),
+            new Claim(JwtRegisteredClaimNames.Email, email),
+            new Claim(JwtRegisteredClaimNames.Name, displayName),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
 
         var token = new JwtSecurityToken(
             issuer: _jwtOptions.Issuer,

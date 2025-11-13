@@ -7,7 +7,7 @@ interface JwtPayload {
   sub?: string;
   userId?: string;
   email: string;
-  name?: string;
+  name: string; // Now required - we always include it in JWT
 }
 
 /**
@@ -43,7 +43,9 @@ export function OAuthCallbackPage() {
           {
             id: payload.sub ?? payload.userId ?? "",
             email: payload.email,
-            displayName: payload.name ?? payload.email,
+            displayName: payload.name, // Use name claim directly
+            createdAt: "", // Not in JWT, will be fetched if needed
+            lastLoginAt: undefined,
           },
           authResponse.accessToken,
           authResponse.refreshToken
@@ -62,30 +64,28 @@ export function OAuthCallbackPage() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="w-full max-w-md space-y-4 p-6">
-          <div className="rounded-lg border border-red-200 bg-red-50 p-4">
-            <h2 className="text-lg font-semibold text-red-900">
-              Authentication Error
-            </h2>
-            <p className="mt-2 text-sm text-red-700">{error}</p>
-          </div>
-          <button
-            onClick={() => void navigate({ to: "/login" })}
-            className="w-full rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">
+            Authentication Failed
+          </h1>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <a
+            href="/login"
+            className="text-blue-600 hover:text-blue-500 underline"
           >
-            Back to Login
-          </button>
+            Try again
+          </a>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"></div>
-        <p className="mt-4 text-gray-600">Completing authentication...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Completing authentication...</p>
       </div>
     </div>
   );

@@ -1,26 +1,21 @@
 import { apiClient } from "@/lib/api-client";
 import type {
-  LoginRequest,
   RegisterRequest,
   RefreshTokenRequest,
   AuthResponse,
+  User,
 } from "../types";
 
 // Modern pattern: separate API functions from hooks
 export const authApi = {
-  register: async (data: RegisterRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post<AuthResponse>(
-      "/api/auth/register",
-      data
-    );
-    return response.data;
-  },
-
-  login: async (data: LoginRequest): Promise<AuthResponse> => {
-    const response = await apiClient.post<AuthResponse>(
-      "/api/auth/login",
-      data
-    );
+  register: async (
+    data: RegisterRequest
+  ): Promise<{ success: boolean; message: string; user: User }> => {
+    const response = await apiClient.post<{
+      success: boolean;
+      message: string;
+      user: User;
+    }>("/api/auth/register", data);
     return response.data;
   },
 

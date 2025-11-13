@@ -78,6 +78,7 @@ public class OAuthController(
         var authCode = await oauthService.CreateAuthorizationCodeAsync(
             userId: user.Id,
             userEmail: user.Email!,
+            userDisplayName: user.DisplayName ?? user.Email!, // NEW: Pass displayName
             clientId: request.ClientId,
             redirectUri: request.RedirectUri,
             codeChallenge: request.CodeChallenge,
@@ -173,4 +174,3 @@ public class OAuthController(
         return Ok(response);
     }
 }
-

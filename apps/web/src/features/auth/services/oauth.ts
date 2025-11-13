@@ -101,14 +101,16 @@ export async function handleOAuthCallback(
 
   const data = (await response.json()) as TokenResponseDto;
 
-  // Transform to AuthResponse format
+  // Transform to AuthResponse format (user will be populated from JWT in callback)
   return {
     accessToken: data.access_token,
     refreshToken: data.refresh_token,
+    expiresAt: new Date(Date.now() + data.expires_in * 1000).toISOString(),
     user: {
-      id: "", // Will be populated from JWT
-      email: "", // Will be populated from JWT
-      displayName: "", // Will be populated from JWT
+      id: "", // Will be populated from JWT in callback
+      email: "", // Will be populated from JWT in callback
+      displayName: "", // Will be populated from JWT in callback
+      createdAt: "", // Will be populated from JWT in callback
     },
   };
 }

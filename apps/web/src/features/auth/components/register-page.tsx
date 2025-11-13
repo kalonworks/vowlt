@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useRegister } from "../hooks";
+import { startOAuthFlow } from "../services/oauth";
 
 export const RegisterPage = () => {
   const register = useRegister();
@@ -19,11 +20,22 @@ export const RegisterPage = () => {
       return;
     }
 
-    register.mutate({
-      email: formData.get("email") as string,
-      password,
-      displayName: formData.get("displayName") as string,
-    });
+    register.mutate(
+      {
+        email: formData.get("email") as string,
+        password,
+        displayName: formData.get("displayName") as string,
+      },
+      {
+        onSuccess: () => {
+          // Registration successful - redirect to OAuth flow
+          void startOAuthFlow();
+        },
+        onError: (err) => {
+          setError(err.message || "Registration failed. Please try again.");
+        },
+      }
+    );
   };
 
   return (
@@ -48,7 +60,7 @@ export const RegisterPage = () => {
                 type="email"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none
-  focus:ring-blue-500 focus:border-blue-500"
+    focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
@@ -65,7 +77,7 @@ export const RegisterPage = () => {
                 type="text"
                 required
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none
-  focus:ring-blue-500 focus:border-blue-500"
+    focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
@@ -80,7 +92,7 @@ export const RegisterPage = () => {
                 required
                 minLength={8}
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none
-  focus:ring-blue-500 focus:border-blue-500"
+    focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
@@ -97,24 +109,26 @@ export const RegisterPage = () => {
                 type="password"
                 required
                 minLength={8}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none 
-  focus:ring-blue-500 focus:border-blue-500"
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none
+    focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
           </div>
 
           {(error || register.error) && (
             <div className="text-red-600 text-sm">
-              {error || register.error?.message || "Registration failed. Please try again."}
+              {error ||
+                register.error?.message ||
+                "Registration failed. Please try again."}
             </div>
           )}
 
           <button
             type="submit"
             disabled={register.isPending}
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm 
-  font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 
-  focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm
+    font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2
+    focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {register.isPending ? "Creating account..." : "Sign up"}
           </button>

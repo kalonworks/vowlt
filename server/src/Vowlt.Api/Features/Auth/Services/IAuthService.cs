@@ -5,14 +5,8 @@ namespace Vowlt.Api.Features.Auth.Services;
 
 public interface IAuthService
 {
-    Task<Result<AuthResponse>> RegisterAsync(
+    Task<Result<UserDto>> RegisterAsync(
         RegisterRequest request,
-        string? ipAddress,
-        CancellationToken cancellationToken = default);
-
-    Task<Result<AuthResponse>> LoginAsync(
-        LoginRequest request,
-        string? ipAddress,
         CancellationToken cancellationToken = default);
 
     Task<Result<AuthResponse>> RefreshTokenAsync(

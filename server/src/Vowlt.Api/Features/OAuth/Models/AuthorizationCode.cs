@@ -7,7 +7,8 @@ public class AuthorizationCode
     public string CodeChallenge { get; private set; } = string.Empty;
     public string CodeChallengeMethod { get; private set; } = "S256";
     public Guid UserId { get; private set; }
-    public string UserEmail { get; private set; } = string.Empty; // NEW: Denormalized for performance
+    public string UserEmail { get; private set; } = string.Empty; // Denormalized for performance
+    public string UserDisplayName { get; private set; } = string.Empty; // Denormalized displayName
     public string ClientId { get; private set; } = string.Empty;
     public string RedirectUri { get; private set; } = string.Empty;
     public string? State { get; private set; }
@@ -20,7 +21,8 @@ public class AuthorizationCode
 
     public static AuthorizationCode Create(
         Guid userId,
-        string userEmail, // NEW: Accept email as parameter
+        string userEmail,
+        string userDisplayName, // NEW: Accept displayName parameter
         string clientId,
         string redirectUri,
         string codeChallenge,
@@ -42,7 +44,8 @@ public class AuthorizationCode
             CodeChallenge = codeChallenge,
             CodeChallengeMethod = codeChallengeMethod,
             UserId = userId,
-            UserEmail = userEmail, // NEW: Store email
+            UserEmail = userEmail,
+            UserDisplayName = userDisplayName, // NEW: Store displayName
             ClientId = clientId,
             RedirectUri = redirectUri,
             State = state,
@@ -63,3 +66,4 @@ public class AuthorizationCode
         return !Used && now < ExpiresAt;
     }
 }
+

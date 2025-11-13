@@ -15,15 +15,14 @@ public class AuthService(
     TimeProvider timeProvider,
     ILogger<AuthService> logger) : IAuthService
 {
-    public async Task<Result<AuthResponse>> RegisterAsync(
+    public async Task<Result<UserDto>> RegisterAsync(
         RegisterRequest request,
-        string? ipAddress,
         CancellationToken cancellationToken = default)
     {
         var existingUser = await userManager.FindByEmailAsync(request.Email);
         if (existingUser != null)
         {
-            return Result<AuthResponse>.Failure("Email already registered");
+            return Result<UserDto>.Failure("Email already registered");
         }
 
         var user = new ApplicationUser
@@ -38,43 +37,20 @@ public class AuthService(
         if (!result.Succeeded)
         {
             var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-            return Result<AuthResponse>.Failure($"Registration failed: {errors}");
+            return Result<UserDto>.Failure($"Registration failed: {errors}");
         }
 
-        return await GenerateAuthResponseAsync(user, ipAddress, cancellationToken);
-    }
-
-    public async Task<Result<AuthResponse>> LoginAsync(
-        LoginRequest request,
-        string? ipAddress,
-        CancellationToken cancellationToken = default)
-    {
-        var user = await userManager.FindByEmailAsync(request.Email);
-        if (user == null)
+        // Return user DTO (no tokens - OAuth will handle that)
+        var userDto = new UserDto
         {
-            logger.LogWarning(
-                "Failed login attempt for email {Email} from IP {IpAddress} - user not found",
-                request.Email, ipAddress);
-            return Result<AuthResponse>.Failure("Invalid credentials");
-        }
+            Id = user.Id,
+            Email = user.Email!,
+            DisplayName = user.DisplayName ?? user.Email!,
+            CreatedAt = user.CreatedAt,
+            LastLoginAt = user.LastLoginAt
+        };
 
-        var isPasswordValid = await userManager.CheckPasswordAsync(user, request.Password);
-        if (!isPasswordValid)
-        {
-            logger.LogWarning(
-                "Failed login attempt for user {UserId} ({Email}) from IP {IpAddress} - invalid password",
-                user.Id, request.Email, ipAddress);
-            return Result<AuthResponse>.Failure("Invalid credentials");
-        }
-
-        user.LastLoginAt = timeProvider.GetUtcNow().UtcDateTime;
-        await userManager.UpdateAsync(user);
-
-        logger.LogInformation(
-            "Successful login for user {UserId} ({Email}) from IP {IpAddress}",
-            user.Id, request.Email, ipAddress);
-
-        return await GenerateAuthResponseAsync(user, ipAddress, cancellationToken);
+        return Result<UserDto>.Success(userDto);
     }
 
     public async Task<Result<AuthResponse>> RefreshTokenAsync(
@@ -105,7 +81,7 @@ public class AuthService(
             ipAddress,
             cancellationToken);
 
-        var accessToken = jwtTokenGenerator.GenerateAccessToken(user.Id, user.Email!);
+        var accessToken = jwtTokenGenerator.GenerateAccessToken(user.Id, user.Email!, user.DisplayName ?? user.Email!);
 
         var response = new AuthResponse
         {
@@ -150,34 +126,5 @@ public class AuthService(
         await context.SaveChangesAsync(cancellationToken);
 
         return Result<bool>.Success(true);
-    }
-
-    private async Task<Result<AuthResponse>> GenerateAuthResponseAsync(
-        ApplicationUser user,
-        string? ipAddress,
-        CancellationToken cancellationToken = default)
-    {
-        var accessToken = jwtTokenGenerator.GenerateAccessToken(user.Id, user.Email!);
-        var refreshToken = await refreshTokenService.GenerateRefreshTokenAsync(
-            user.Id,
-            ipAddress,
-            cancellationToken);
-
-        var response = new AuthResponse
-        {
-            AccessToken = accessToken,
-            RefreshToken = refreshToken.Token,
-            ExpiresAt = refreshToken.ExpiresAt,
-            User = new UserDto
-            {
-                Id = user.Id,
-                Email = user.Email!,
-                DisplayName = user.DisplayName ?? user.Email!,
-                CreatedAt = user.CreatedAt,
-                LastLoginAt = user.LastLoginAt
-            }
-        };
-
-        return Result<AuthResponse>.Success(response);
     }
 }
