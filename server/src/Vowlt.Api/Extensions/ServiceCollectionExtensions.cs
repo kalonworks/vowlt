@@ -65,7 +65,7 @@ public static class ServiceCollectionExtensions
 
         var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password}";
 
-        services.AddDbContext<VowltDbContext>(options =>
+        services.AddDbContextFactory<VowltDbContext>(options =>
         {
             options.UseNpgsql(connectionString, npgsqlOptions =>
             {

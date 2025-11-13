@@ -8,18 +8,19 @@ namespace Vowlt.Api.Features.Search.Services;
 /// BM25 keyword search implementation using ParadeDB
 /// </summary>
 public class KeywordSearchService(
-    VowltDbContext context,
+    IDbContextFactory<VowltDbContext> contextFactory,
     ILogger<KeywordSearchService> logger) : IKeywordSearchService
 {
     public async Task<List<KeywordSearchResult>> SearchAsync(
-        Guid userId,
-        string query,
-        int limit,
-        DateTime? fromDate = null,
-        DateTime? toDate = null,
-        string? domain = null,
-        CancellationToken cancellationToken = default)
+    Guid userId,
+    string query,
+    int limit,
+    DateTime? fromDate = null,
+    DateTime? toDate = null,
+    string? domain = null,
+    CancellationToken cancellationToken = default)
     {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         try
         {
             // Parse query to support AND/OR, phrases, prefix matching
@@ -36,7 +37,7 @@ public class KeywordSearchService(
                       paradedb.score(b.""Id"") as Bm25Score,
                       ROW_NUMBER() OVER (ORDER BY paradedb.score(b.""Id"") DESC) as Rank
                   FROM ""Bookmarks"" b
-                  WHERE b.""Id"" @@@ paradedb.parse(@query)
+                  WHERE b.""Id"" @@@ paradedb.parse(@query, lenient => true)
                       AND b.""UserId"" = @userId";
 
             // Add optional filters

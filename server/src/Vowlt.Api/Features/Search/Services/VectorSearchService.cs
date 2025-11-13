@@ -11,9 +11,9 @@ namespace Vowlt.Api.Features.Search.Services;
 /// Vector (semantic) search implementation using pgvector
 /// </summary>
 public class VectorSearchService(
-    VowltDbContext context,
-    IEmbeddingService embeddingService,
-    ILogger<VectorSearchService> logger) : IVectorSearchService
+     IDbContextFactory<VowltDbContext> contextFactory,
+     IEmbeddingService embeddingService,
+     ILogger<VectorSearchService> logger) : IVectorSearchService
 {
     public async Task<List<VectorSearchResult>> SearchAsync(
         Guid userId,
@@ -25,6 +25,7 @@ public class VectorSearchService(
         string? domain = null,
         CancellationToken cancellationToken = default)
     {
+        await using var context = await contextFactory.CreateDbContextAsync(cancellationToken);
         try
         {
             logger.LogInformation(
